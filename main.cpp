@@ -15,8 +15,15 @@ auto main() -> int
     tree::Tree<int> emptyTree;
     std::cout << "Empty tree:" << std::endl;
     Dump(emptyTree.begin(), emptyTree.end());
+    
     tree::Tree<long> rootTree(42);
     std::cout << "Root tree:" << std::endl;
     Dump(rootTree.begin(), rootTree.end());
+    
+    tree::Tree<double> oneTree(0.0);
+    oneTree.AddSucc(1.0, oneTree.GetRoot());
+    oneTree.AddSucc(2.0, oneTree.GetRoot());
+    std::cout << "One tree:" << std::endl;
+    Dump(oneTree.begin(), oneTree.end());
     return 0;
 }

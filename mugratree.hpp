@@ -26,6 +26,9 @@ template<typename DataT, typename NodeBasePtrIteratorT>
 struct SuccsIterator;
 
 template<typename DataT>
+struct TreeDFIterator;
+
+template<typename DataT>
 struct Succs
 {
     using SuccsT = NodeBase::SuccsT;
@@ -48,11 +51,27 @@ struct Succs
 };
 
 template<typename DataT>
+struct Tree;
+
+template<typename DataT>
 struct Handle
 {
     using NodeT = Node<DataT>;
+    using TreeDFIteratorT = TreeDFIterator<DataT>;
     
     Handle(NodeT* nodePtr) : nodePtr_(nodePtr) {}
+
+    TreeDFIteratorT GetPred()
+    {
+        return TreeDFIteatorT(nodePtr_->pred_);
+    }
+
+    TreeDFIteratorT AddSucc(NodeT* newNode)
+    {
+        newNode->pred_ = nodePtr_;
+        nodePtr_->succs_.push_back(newNode);
+        return TreeDFIteratorT(newNode);
+    }
 
     private:
         NodeT* nodePtr_;
@@ -210,35 +229,64 @@ struct TreeIterator
 template<typename DataT>
 struct Tree
 {
-    using NodeT = Node<DataT>;
-    using NodesT = std::deque<NodeT>;
-    using TreeIteratorT = TreeIterator<DataT, typename NodesT::iterator>;
+    using TreeDFIteratorT = TreeDFIterator<DataT>;
+    
     Tree() : root_(nullptr) {}
+    
     explicit Tree(DataT data)
     {
-        container_.push_back(std::move(data));
-        nodes_.push_back(NodeT(&*container_.rbegin(), nullptr));
-        root_ = &*nodes_.rbegin();
+        root_ = AddNode(std::move(data), nullptr);
     }
 
-    TreeIteratorT begin()
+    TreeDFIteratorT begin()
     {
-        return TreeIteratorT(nodes_.begin());
+        return TreeDFIteratorT(root_);
     }
 
-    TreeIteratorT end()
+    TreeDFIteratorT end()
     {
-        return TreeIteratorT(nodes_.end());
+        return TreeDFIteratorT(nullptr);
     }
 
-    //TreeIteratorT GetPred(TreeIteratorT cur)
-    //{
-    //    return cur.GetPred();
-    //}
+    TreeDFIteratorT GetRoot()
+    {
+        return TreeDFIteratorT(root_);
+    }
+
+    template<typename IteratorT>
+    TreeDFIteratorT GetPred(IteratorT cur)
+    {
+        return cur.GetHandle().GetPred();
+    }
+
+    template<typename IteratorT>
+    TreeDFIteratorT AddSucc(DataT data, IteratorT cur)
+    {
+#if 0
+        auto& succs = cur.GetHandle().nodePtr_->succs_;
+        auto pred = cur.GetHandle().nodePtr_;
+        NodeT* newNode = AddNode(std::move(data), pred);
+        succs.push_back(newNode);
+        return TreeDFIteratorT(newNode);
+#endif
+        NodeT* newNode = AddNode(std::move(data), nullptr);
+        return cur.GetHandle().AddSucc(newNode);
+    }
+
 
     private:
+        using NodeT = Node<DataT>;
+        using NodesT = std::deque<NodeT>;
+        using HandleT = Handle<DataT>;
 
-        std::deque<DataT> container_;
+        NodeT* AddNode(DataT data, NodeT* pred)
+        {
+            data_.push_back(std::move(data));
+            nodes_.push_back(NodeT(&*data_.rbegin(), pred));
+            return &*nodes_.rbegin();
+        }
+        
+        std::deque<DataT> data_;
         NodesT nodes_;
         NodeT* root_;
 };
