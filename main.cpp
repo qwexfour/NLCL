@@ -21,9 +21,19 @@ auto main() -> int
     Dump(rootTree.begin(), rootTree.end());
     
     tree::Tree<double> oneTree(0.0);
-    oneTree.AddSucc(1.0, oneTree.GetRoot());
-    oneTree.AddSucc(2.0, oneTree.GetRoot());
+    auto oneRoot = oneTree.GetRoot();
+    oneTree.AddSucc(1.0, oneRoot);
+    oneTree.AddSucc(4.0, oneRoot);
     std::cout << "One tree:" << std::endl;
+    std::cout << "Testing succs:" << std::endl;
+    auto firstLevel = oneTree.GetSuccs(oneRoot);
+    for (auto& leaf : firstLevel)
+    {
+        std::cout << leaf << " ";
+    }
+    oneTree.AddSucc(2.0, firstLevel.begin());
+    oneTree.AddSucc(3.0, firstLevel.begin());
+    std::cout << std::endl << "Dump:" << std::endl;
     Dump(oneTree.begin(), oneTree.end());
     return 0;
 }

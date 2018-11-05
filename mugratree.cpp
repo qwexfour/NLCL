@@ -4,7 +4,9 @@
 #include <algorithm>
 #include <cassert>
 
-tree::NodeBase* tree::IncTreeDFIterator(tree::NodeBase* curNode)
+using namespace tree;
+
+NodeBase* tree::IncTreeDFIterator(NodeBase* curNode)
 {
     auto& curSuccs = curNode->succs_;
     if (curSuccs.empty())

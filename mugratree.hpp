@@ -34,7 +34,7 @@ struct Succs
     using SuccsT = NodeBase::SuccsT;
     using SuccsIteratorT = SuccsIterator<DataT, SuccsT::iterator>;
     
-    Succs(Succs& succs) : succs_(succs) {}
+    Succs(SuccsT& succs) : succs_(succs) {}
 
     SuccsIteratorT begin()
     {
@@ -64,6 +64,11 @@ struct Handle
     TreeDFIteratorT GetPred()
     {
         return TreeDFIteatorT(nodePtr_->pred_);
+    }
+
+    Succs<DataT> GetSuccs()
+    {
+        return Succs<DataT>(nodePtr_->succs_);
     }
 
     TreeDFIteratorT AddSucc(NodeT* newNode)
@@ -109,7 +114,7 @@ struct SuccsIterator
 
     Handle<DataT> GetHandle()
     {
-        return Handle<DataT>(static_cast<NodeT*>(&*nodeBasePtrIterator_));
+        return Handle<DataT>(static_cast<NodeT*>(*nodeBasePtrIterator_));
     }
 
     friend bool operator==(const SuccsIterator& lhs, const SuccsIterator& rhs)
@@ -262,17 +267,15 @@ struct Tree
     template<typename IteratorT>
     TreeDFIteratorT AddSucc(DataT data, IteratorT cur)
     {
-#if 0
-        auto& succs = cur.GetHandle().nodePtr_->succs_;
-        auto pred = cur.GetHandle().nodePtr_;
-        NodeT* newNode = AddNode(std::move(data), pred);
-        succs.push_back(newNode);
-        return TreeDFIteratorT(newNode);
-#endif
         NodeT* newNode = AddNode(std::move(data), nullptr);
         return cur.GetHandle().AddSucc(newNode);
     }
 
+    template<typename IteratorT>
+    Succs<DataT> GetSuccs(IteratorT cur)
+    {
+        return cur.GetHandle().GetSuccs();
+    }
 
     private:
         using NodeT = Node<DataT>;
