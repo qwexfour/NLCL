@@ -6,6 +6,7 @@
 
 using namespace tree;
 
+#if 0
 NodeBase* tree::IncTreeDFIterator(NodeBase* curNode)
 {
     auto& curSuccs = curNode->succs_;
@@ -40,3 +41,4 @@ NodeBase* tree::IncTreeDFIterator(NodeBase* curNode)
         return curSuccs.front();
     }
 }
+#endif

@@ -2,106 +2,114 @@
 #define MUGRATREE_LIB
 
 #include <cassert>
+#include <algorithm>
 #include <deque>
+#include <iostream>
 
 namespace tree
 {
 
-struct NodeBase
-{
-    using SuccsT = std::deque<NodeBase*>;
-    explicit NodeBase(NodeBase* pred) : pred_(pred) {}
-    NodeBase* pred_;
-    SuccsT succs_;
-};
+template<typename DataT, template<typename ...> typename Seq>
+struct Node;
 
-template<typename DataT>
-struct Node : public NodeBase
-{
-    Node(DataT* data, NodeBase* pred) : NodeBase(pred), dataPtr_(data) {}
-    DataT* dataPtr_;
-};
+template<typename DataT, template<typename ...> typename Seq>
+struct Succs;
 
-template<typename DataT, typename NodeBasePtrIteratorT>
+template<typename DataT, template<typename ...> typename Seq>
 struct SuccsIterator;
 
-template<typename DataT>
-struct TreeDFIterator;
+template<typename DataT, template<typename ...> typename Seq>
+struct DFIterator;
 
-template<typename DataT>
+template<typename DataT, template<typename ...> typename Seq>
+struct TreeIterator;
+
+template<typename DataT, template<typename ...> typename Seq>
+struct Handle;
+
+template<typename DataT, template<typename ...> typename Seq>
+struct DF;
+
+template<typename DataT, template<typename ...> typename Seq>
+struct DFIterator;
+
+template<typename DataT, template<typename ...> typename Seq = std::deque>
+struct TypeLib
+{
+    using DataSeq = Seq<DataT>;
+    using DataIt = typename DataSeq::iterator;
+    using NodeT = Node<DataT, Seq>;
+    using NodeSeq = Seq<NodeT>;
+    using NodeIt = typename NodeSeq::iterator;
+    using NodeItSeq = Seq<NodeIt>;
+    using NodeItIt = typename NodeItSeq::iterator;
+    using TreeIteratorT = TreeIterator<DataT, Seq>;
+    using SuccsIteratorT = SuccsIterator<DataT, Seq>;
+    using SuccsT = Succs<DataT, Seq>;
+    using HandleT = Handle<DataT, Seq>;
+    using DFT = DF<DataT, Seq>;
+    using DFIteratorT = DFIterator<DataT, Seq>;
+};
+
+template<typename DataT, template<typename ...> typename Seq>
+struct Node
+{
+    using Type = TypeLib<DataT, Seq>;
+    
+    Node(typename Type::DataIt dataIt) : dataIt_(dataIt) {}
+    
+    typename Type::DataIt dataIt_;
+    typename Type::NodeIt predIt_;
+    typename Type::NodeItSeq succItSeq_;
+
+    void Dump()
+    {
+        std::cout << *dataIt_ << std::endl;
+    }
+};
+
+template<typename DataT, template<typename ...> typename Seq>
 struct Succs
 {
-    using SuccsT = NodeBase::SuccsT;
-    using SuccsIteratorT = SuccsIterator<DataT, SuccsT::iterator>;
+    using Type = TypeLib<DataT, Seq>;
     
-    Succs(SuccsT& succs) : succs_(succs) {}
+    Succs(typename Type::NodeItSeq& succItSeq) : succItSeq_(succItSeq) {}
 
-    SuccsIteratorT begin()
+    typename Type::SuccsIteratorT begin()
     {
-        return SuccsIteratorT(succs_.begin());
+        return typename Type::SuccsIteratorT(succItSeq_.begin());
     }
 
-    SuccsIteratorT end()
+    typename Type::SuccsIteratorT end()
     {
-        return SuccsIteratorT(succs_.end());
+        return typename Type::SuccsIteratorT(succItSeq_.end());
     }
 
     private:
-        SuccsT& succs_;
+        typename Type::NodeItSeq& succItSeq_;
 };
 
-template<typename DataT>
-struct Tree;
-
-template<typename DataT>
-struct Handle
-{
-    using NodeT = Node<DataT>;
-    using TreeDFIteratorT = TreeDFIterator<DataT>;
-    
-    Handle(NodeT* nodePtr) : nodePtr_(nodePtr) {}
-
-    TreeDFIteratorT GetPred()
-    {
-        return TreeDFIteatorT(nodePtr_->pred_);
-    }
-
-    Succs<DataT> GetSuccs()
-    {
-        return Succs<DataT>(nodePtr_->succs_);
-    }
-
-    TreeDFIteratorT AddSucc(NodeT* newNode)
-    {
-        newNode->pred_ = nodePtr_;
-        nodePtr_->succs_.push_back(newNode);
-        return TreeDFIteratorT(newNode);
-    }
-
-    private:
-        NodeT* nodePtr_;
-};
-
-template<typename DataT, typename NodeBasePtrIteratorT>
+template<typename DataT, template<typename ...> typename Seq>
 struct SuccsIterator
 {
+    using Type = TypeLib<DataT, Seq>;
 
-    SuccsIterator(NodeBasePtrIteratorT nodeBasePtrIterator) :
-        nodeBasePtrIterator_(nodeBasePtrIterator) {}
+    SuccsIterator(typename Type::NodeItIt succItIt) :
+        succItIt_(succItIt) {}
 
     DataT& operator*() const
     {
-        return *(static_cast<NodeT*>(*nodeBasePtrIterator_)->dataPtr_);
+        return *((*succItIt_)->dataIt_);
     }
 
     DataT* operator->() const
     {
-        return static_cast<NodeT*>(*nodeBasePtrIterator_)->dataPtr_;
+        return (*succItIt_)->dataIt_;
     }
 
     SuccsIterator& operator++()
     {
-        ++nodeBasePtrIterator_;
+        ++succItIt_;
         return *this;
     }
 
@@ -112,96 +120,218 @@ struct SuccsIterator
         return tmp;
     }
 
-    Handle<DataT> GetHandle()
+    typename Type::HandleT GetHandle()
     {
-        return Handle<DataT>(static_cast<NodeT*>(*nodeBasePtrIterator_));
+        return typename Type::HandleT(*succItIt_);
     }
 
     friend bool operator==(const SuccsIterator& lhs, const SuccsIterator& rhs)
     {
-        return lhs.nodeBasePtrIterator_ == rhs.nodeBasePtrIterator_;
+        return lhs.succItIt_ == rhs.succItIt_;
     }
 
     friend bool operator!=(const SuccsIterator& lhs, const SuccsIterator& rhs)
     {
-        return lhs.nodeBasePtrIterator_ != rhs.nodeBasePtrIterator_;
+        return lhs.succItIt_ != rhs.succItIt_;
     }
 
     private:
-        using NodeT = Node<DataT>;
-        NodeBasePtrIteratorT nodeBasePtrIterator_;
+        typename Type::NodeItIt succItIt_;
 };
 
-NodeBase* IncTreeDFIterator(NodeBase* curNodePtr);
-
-template<typename DataT>
-struct TreeDFIterator
+template<typename DataT, template<typename ...> typename Seq>
+struct Handle
 {
-    using NodeT = Node<DataT>;
-    explicit TreeDFIterator(NodeBase* nodePtr) : nodePtr_(nodePtr) {}
+    using Type = TypeLib<DataT, Seq>;
+    
+    Handle(typename Type::NodeIt nodeIt) : nodeIt_(nodeIt) {}
+
+    typename Type::TreeIteratorT GetPred()
+    {
+        return typename Type::TreeIteatorT(nodeIt_->predIt_);
+    }
+
+    typename Type::SuccsT GetSuccs()
+    {
+        return typename Type::SuccsT(nodeIt_->succItSeq_);
+    }
+
+    typename Type::TreeIteratorT AddSucc(typename Type::NodeIt newNode)
+    {
+        newNode->predIt_ = nodeIt_;
+        nodeIt_->succItSeq_.push_back(newNode);
+        return typename Type::TreeIteratorT(newNode);
+    }
+
+    private:
+        typename Type::NodeIt nodeIt_;
+};
+
+template<typename DataT, template<typename ...> typename Seq>
+struct DF
+{
+    using Type = TypeLib<DataT, Seq>;
+
+    DF(typename Type::NodeSeq& nodeSeq, typename Type::NodeIt root) :
+        nodeSeq_(nodeSeq), root_(root) {}
+
+    typename Type::DFIteratorT begin()
+    {
+        return typename Type::DFIteratorT(root_, nodeSeq_.end());
+    }
+
+    typename Type::DFIteratorT end()
+    {
+        return typename Type::DFIteratorT(nodeSeq_.end(), nodeSeq_.end());
+    }
+
+    private:
+        typename Type::NodeSeq& nodeSeq_;
+        typename Type::NodeIt root_;
+};
+
+#if 0
+NodeBase* IncDFIterator(NodeBase* curNodePtr);
+    auto& curSuccs = curNode->succs_;
+    if (curSuccs.empty())
+    {
+        // stepping back
+        while (curNode->pred_)
+        {
+            auto pred = curNode->pred_;
+            auto& predSuccs = pred->succs_;
+            auto nextSuccIt = std::find(predSuccs.begin(), predSuccs.end(), curNode);
+            assert(nextSuccIt != predSuccs.end() &&
+                "pred must point to current");
+            ++nextSuccIt;
+            if (nextSuccIt == predSuccs.end())
+            {
+                // keep stepping back
+                curNode = pred;
+                continue;
+            }
+            else
+            {
+                return *nextSuccIt;
+            }
+        }
+        // reached the end
+        return nullptr;
+    }
+    else
+    {
+        //continue going deeper
+        return curSuccs.front();
+    }
+#endif
+
+template<typename DataT, template<typename ...> typename Seq>
+struct DFIterator
+{
+    using Type = TypeLib<DataT, Seq>;
+
+    explicit DFIterator(typename Type::NodeIt nodeIt, typename Type::NodeIt end) :
+        nodeIt_(nodeIt), end_(end) {}
     
     DataT& operator*() const
     {
-        return *(static_cast<NodeT*>(nodePtr_)->dataPtr_);
+        return *(nodeIt_->dataIt_);
     }
 
     DataT* operator->() const
     {
-        return static_cast<NodeT*>(nodePtr_)->dataPtr_;
+        return nodeIt_->dataIt_;
     }
 
-    TreeDFIterator& operator++()
+    DFIterator& operator++()
     {
-        nodePtr_ = IncTreeDFIterator(nodePtr_);
-        return *this;
+        auto curNodeIt = nodeIt_;
+        auto& curSuccItSeq = curNodeIt->succItSeq_;
+        if (curSuccItSeq.empty())
+        {
+            // stepping back
+            // until root (root's pred is root)
+            while (curNodeIt->predIt_ != curNodeIt)
+            {
+                auto pred = curNodeIt->predIt_;
+                auto& predSuccs = pred->succItSeq_;
+                auto nextSuccIt = std::find(predSuccs.begin(), predSuccs.end(), curNodeIt);
+                assert(nextSuccIt != predSuccs.end() &&
+                    "pred must point to current");
+                ++nextSuccIt;
+                if (nextSuccIt == predSuccs.end())
+                {
+                    // keep stepping back
+                    curNodeIt = pred;
+                    continue;
+                }
+                else
+                {
+                    // stop stepping back
+                    // start going deeper again
+                    nodeIt_ = *nextSuccIt;
+                    return *this;
+                }
+            }
+            // reached the end
+            nodeIt_ = end_;
+            return *this;
+        }
+        else
+        {
+            //continue going deeper
+            nodeIt_ = curSuccItSeq.front();
+            return *this;
+        }
     }
 
-    TreeDFIterator operator++(int)
+    DFIterator operator++(int)
     {
         auto tmp = *this;
         ++(*this);
         return tmp;
     }
 
-    Handle<DataT> GetHandle()
+    typename Type::HandleT GetHandle()
     {
-        return Handle<DataT>(static_cast<NodeT*>(nodePtr_));
+        return typename Type::HandleT(nodeIt_);
     }
 
-    friend bool operator==(const TreeDFIterator& lhs, const TreeDFIterator& rhs)
+    friend bool operator==(const DFIterator& lhs, const DFIterator& rhs)
     {
-        return lhs.nodePtr_ == rhs.nodePtr_;
+        return lhs.nodeIt_ == rhs.nodeIt_;
     }
 
-    friend bool operator!=(const TreeDFIterator& lhs, const TreeDFIterator& rhs)
+    friend bool operator!=(const DFIterator& lhs, const DFIterator& rhs)
     {
-        return lhs.nodePtr_ != rhs.nodePtr_;
+        return lhs.nodeIt_ != rhs.nodeIt_;
     }
 
     private:
-        NodeBase* nodePtr_;
+        typename Type::NodeIt nodeIt_;
+        typename Type::NodeIt end_;
 };
 
-template<typename DataT, typename InnerIteratorT>
+template<typename DataT, template<typename ...> typename Seq>
 struct TreeIterator
 {
-    using NodeT = Node<DataT>;
+    using Type = TypeLib<DataT, Seq>;
 
-    TreeIterator(InnerIteratorT nodeIterator) : nodeIterator_(nodeIterator) {}
+    TreeIterator(typename Type::NodeIt nodeIt) : nodeIt_(nodeIt) {}
 
     DataT& operator*() const
     {
-        return *nodeIterator_->dataPtr_;
+        return *nodeIt_->dataIt_;
     }
 
     DataT* operator->() const
     {
-        return nodeIterator_->dataPtr_;
+        return nodeIt_->dataIt_;
     }
 
     TreeIterator& operator++()
     {
-        ++nodeIterator_;
+        ++nodeIt_;
         return *this;
     }
 
@@ -212,86 +342,99 @@ struct TreeIterator
         return tmp;
     }
 
-    Handle<DataT> GetHandle()
+    typename Type::HandleT GetHandle()
     {
-        return Handle<DataT>(&*nodeIterator_);
+        return typename Type::HandleT(nodeIt_);
     }
 
     friend bool operator==(const TreeIterator& lhs, const TreeIterator& rhs)
     {
-        return lhs.nodeIterator_ == rhs.nodeIterator_;
+        return lhs.nodeIt_ == rhs.nodeIt_;
     }
 
     friend bool operator!=(const TreeIterator& lhs, const TreeIterator& rhs)
     {
-        return lhs.nodeIterator_ != rhs.nodeIterator_;
+        return lhs.nodeIt_ != rhs.nodeIt_;
     }
 
     private:
-        InnerIteratorT nodeIterator_;
+        typename Type::NodeIt nodeIt_;
 };
 
-template<typename DataT>
+template<typename DataT, template<typename ...> typename Seq = std::deque>
 struct Tree
 {
-    using TreeDFIteratorT = TreeDFIterator<DataT>;
+    using Type = TypeLib<DataT, Seq>;
     
-    Tree() : root_(nullptr) {}
+    Tree()
+    {
+        root_ = nodeSeq_.end();
+    }
     
     explicit Tree(DataT data)
     {
-        root_ = AddNode(std::move(data), nullptr);
+        root_ = AddNode(std::move(data));
     }
 
-    TreeDFIteratorT begin()
+    typename Type::TreeIteratorT begin()
     {
-        return TreeDFIteratorT(root_);
+        return typename Type::TreeIteratorT(nodeSeq_.begin());
     }
 
-    TreeDFIteratorT end()
+    typename Type::TreeIteratorT end()
     {
-        return TreeDFIteratorT(nullptr);
+        return typename Type::TreeIteratorT(nodeSeq_.end());
     }
 
-    TreeDFIteratorT GetRoot()
+    typename Type::TreeIteratorT GetRoot()
     {
-        return TreeDFIteratorT(root_);
+        return typename Type::TreeIteratorT(root_);
+    }
+
+    typename Type::DFT GetDF()
+    {
+        return typename Type::DFT(nodeSeq_, root_);
     }
 
     template<typename IteratorT>
-    TreeDFIteratorT GetPred(IteratorT cur)
+    typename Type::TreeIteratorT GetPred(IteratorT cur)
     {
         return cur.GetHandle().GetPred();
     }
 
     template<typename IteratorT>
-    TreeDFIteratorT AddSucc(DataT data, IteratorT cur)
+    typename Type::TreeIteratorT AddSucc(DataT data, IteratorT cur)
     {
-        NodeT* newNode = AddNode(std::move(data), nullptr);
-        return cur.GetHandle().AddSucc(newNode);
+        auto newNodeIt = AddNode(std::move(data));
+        return cur.GetHandle().AddSucc(newNodeIt);
     }
 
     template<typename IteratorT>
-    Succs<DataT> GetSuccs(IteratorT cur)
+    typename Type::SuccsT GetSuccs(IteratorT cur)
     {
         return cur.GetHandle().GetSuccs();
     }
 
     private:
-        using NodeT = Node<DataT>;
-        using NodesT = std::deque<NodeT>;
-        using HandleT = Handle<DataT>;
+        //using HandleT = Handle<DataT>;
 
-        NodeT* AddNode(DataT data, NodeT* pred)
+        // initializes:
+        //   - dataIt_ field
+        //   - predIt_ field with iterator to self
+        // succItSeq_ remains empty
+        typename Type::NodeIt AddNode(DataT data)
         {
-            data_.push_back(std::move(data));
-            nodes_.push_back(NodeT(&*data_.rbegin(), pred));
-            return &*nodes_.rbegin();
+            dataSeq_.push_back(std::move(data));
+            typename Type::DataIt dataIt = --dataSeq_.end();
+            nodeSeq_.push_back(typename Type::NodeT(dataIt));
+            typename Type::NodeIt nodeIt = --nodeSeq_.end();
+            nodeIt->predIt_ = nodeIt;
+            return nodeIt;
         }
-        
-        std::deque<DataT> data_;
-        NodesT nodes_;
-        NodeT* root_;
+
+        typename Type::DataSeq dataSeq_;
+        typename Type::NodeSeq nodeSeq_;
+        typename Type::NodeIt root_;
 };
 
 } //tree
