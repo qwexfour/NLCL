@@ -163,6 +163,18 @@ struct Handle
         return typename Type::TreeIteratorT(newNode);
     }
 
+    typename Type::TreeIteratorT DeleteLeaf(typename Type::DataSeq& dataSeq, typename Type::NodeSeq& nodeSeq)
+    {
+        assert(nodeIt_->succItSeq_.empty() &&
+            "I've said Leaf");
+        auto pred = nodeIt_->predIt_;
+        auto& predSuccs = pred->succItSeq_;
+        std::remove(predSuccs.begin(), predSuccs.end(), nodeIt_);
+        dataSeq.erase(nodeIt_->dataIt_);
+        nodeSeq.erase(nodeIt_);
+        return pred;
+    }
+
     private:
         typename Type::NodeIt nodeIt_;
 };
@@ -189,41 +201,6 @@ struct DF
         typename Type::NodeSeq& nodeSeq_;
         typename Type::NodeIt root_;
 };
-
-#if 0
-NodeBase* IncDFIterator(NodeBase* curNodePtr);
-    auto& curSuccs = curNode->succs_;
-    if (curSuccs.empty())
-    {
-        // stepping back
-        while (curNode->pred_)
-        {
-            auto pred = curNode->pred_;
-            auto& predSuccs = pred->succs_;
-            auto nextSuccIt = std::find(predSuccs.begin(), predSuccs.end(), curNode);
-            assert(nextSuccIt != predSuccs.end() &&
-                "pred must point to current");
-            ++nextSuccIt;
-            if (nextSuccIt == predSuccs.end())
-            {
-                // keep stepping back
-                curNode = pred;
-                continue;
-            }
-            else
-            {
-                return *nextSuccIt;
-            }
-        }
-        // reached the end
-        return nullptr;
-    }
-    else
-    {
-        //continue going deeper
-        return curSuccs.front();
-    }
-#endif
 
 template<typename DataT, template<typename ...> typename Seq>
 struct DFIterator
@@ -415,9 +392,13 @@ struct Tree
         return cur.GetHandle().GetSuccs();
     }
 
-    private:
-        //using HandleT = Handle<DataT>;
+    template<typename IteratorT>
+    typename Type::TreeIteratorT DeleteLeaf(IteratorT cur)
+    {
+        return cur.GetHandle().DeleteLeaf(dataSeq_, nodeSeq_);
+    }
 
+    private:
         // initializes:
         //   - dataIt_ field
         //   - predIt_ field with iterator to self

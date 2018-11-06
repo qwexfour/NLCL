@@ -20,7 +20,6 @@ auto main() -> int
     std::cout << "Root tree:" << std::endl;
     Dump(rootTree.begin(), rootTree.end());
     
-#if 1
     tree::Tree<double> oneTree(0.0);
     auto oneRoot = oneTree.GetRoot();
     oneTree.AddSucc(1.0, oneRoot);
@@ -36,6 +35,8 @@ auto main() -> int
     oneTree.AddSucc(3.0, firstLevel.begin());
     std::cout << std::endl << "Dump:" << std::endl;
     Dump(oneTree.GetDF().begin(), oneTree.GetDF().end());
-#endif
+    oneTree.DeleteLeaf(++firstLevel.begin());
+    std::cout << "Deleted last" << std::endl << "Dump:" << std::endl;
+    Dump(oneTree.GetDF().begin(), oneTree.GetDF().end());
     return 0;
 }
