@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <deque>
 #include <iostream>
+#include <variant>
 
 namespace tree
 {
@@ -117,6 +118,19 @@ struct SuccsIterator
     {
         auto tmp = *this;
         ++(*this);
+        return tmp;
+    }
+
+    SuccsIterator& operator--()
+    {
+        --succItIt_;
+        return *this;
+    }
+
+    SuccsIterator operator--(int)
+    {
+        auto tmp = *this;
+        --(*this);
         return tmp;
     }
 
@@ -319,6 +333,19 @@ struct TreeIterator
         return tmp;
     }
 
+    TreeIterator& operator--()
+    {
+        --nodeIt_;
+        return *this;
+    }
+
+    TreeIterator operator--(int)
+    {
+        auto tmp = *this;
+        --(*this);
+        return tmp;
+    }
+
     typename Type::HandleT GetHandle()
     {
         return typename Type::HandleT(nodeIt_);
@@ -351,6 +378,20 @@ struct Tree
     explicit Tree(DataT data)
     {
         root_ = AddNode(std::move(data));
+    }
+
+    typename Type::TreeIteratorT SetRoot(DataT data)
+    {
+        if (root_ == nodeSeq_.end())
+        {
+            root_ = AddNode(std::move(data));
+        }
+        else
+        {
+            *(root_->dataIt_) = std::move(data);
+        }
+
+        return typename Type::TreeIteratorT(root_);
     }
 
     typename Type::TreeIteratorT begin()
@@ -417,6 +458,9 @@ struct Tree
         typename Type::NodeSeq nodeSeq_;
         typename Type::NodeIt root_;
 };
+
+template<typename ...Args>
+using LasyMuGraTree = Tree<std::variant<Args...>>;
 
 } //tree
 #endif //MUGRATREE_LIB

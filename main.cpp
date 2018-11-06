@@ -13,10 +13,12 @@ void Dump(Iter first, Iter last)
 auto main() -> int
 {
     tree::Tree<int> emptyTree;
+    emptyTree.SetRoot(42);
     std::cout << "Empty tree:" << std::endl;
     Dump(emptyTree.begin(), emptyTree.end());
     
     tree::Tree<long> rootTree(42);
+    rootTree.SetRoot(43);
     std::cout << "Root tree:" << std::endl;
     Dump(rootTree.begin(), rootTree.end());
     
@@ -38,5 +40,12 @@ auto main() -> int
     oneTree.DeleteLeaf(++firstLevel.begin());
     std::cout << "Deleted last" << std::endl << "Dump:" << std::endl;
     Dump(oneTree.GetDF().begin(), oneTree.GetDF().end());
+
+    tree::LasyMuGraTree<int, double> lasyTree;
+    lasyTree.AddSucc(std::variant<int, double>(13.5), lasyTree.SetRoot(std::variant<int, double>(13)));
+    std::cout << "Lasy Tree:" << std::endl;
+    std::cout << std::get<int>(*lasyTree.GetRoot()) << " ";
+    std::cout << std::get<double>(*lasyTree.GetSuccs(lasyTree.GetRoot()).begin()) << std::endl;
+    
     return 0;
 }
