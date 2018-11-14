@@ -1,5 +1,5 @@
-#ifndef MUGRATREE_LIB
-#define MUGRATREE_LIB
+#ifndef NAIVE_TREE_LIB
+#define NAIVE_TREE_LIB
 
 #include <cassert>
 #include <algorithm>
@@ -7,7 +7,7 @@
 #include <iostream>
 #include <variant>
 
-namespace tree
+namespace naive_tree
 {
 
 template<typename DataT, template<typename ...> typename Seq>
@@ -463,4 +463,4 @@ template<typename ...Args>
 using LasyMuGraTree = Tree<std::variant<Args...>>;
 
 } //tree
-#endif //MUGRATREE_LIB
+#endif //NAIVE_TREE_LIB
