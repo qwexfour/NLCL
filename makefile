@@ -7,7 +7,7 @@ all: a.out
 a.out: main.o 
 	$(CXX) $(CXXFLAGS) $(DBGINFO) main.o -o a.out
 
-main.o: main.cpp mugratree.hpp
+main.o: main.cpp tree.hpp
 	$(CXX) $(CXXFLAGS) $(DBGINFO) -c main.cpp -o main.o
 
 testnaivetree: testnaivetree.o 
