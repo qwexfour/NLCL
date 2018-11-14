@@ -12,5 +12,6 @@ void Dump(Iter first, Iter last)
 
 auto main() -> int
 {
+    //
     return 0;
 }
