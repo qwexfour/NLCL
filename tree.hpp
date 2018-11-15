@@ -6,6 +6,7 @@
 #include <deque>
 #include <iostream>
 #include <variant>
+#include <memory>
 
 namespace tree
 {
@@ -19,16 +20,17 @@ namespace detail
     {
         enum type_t
         {
-            LEADING,
-            TRAILING,
+            LEADING,    // edge points into lead_pass (for nexts)
+            TRAILING,   // edge points int trail_pass (for nexts)
+                        // for preds same as in corresponding nexts
             INVALID
         };
 
+        edge_t() :
+            succ_(nullptr), type_(type_t::INVALID) {}
+
         edge_t(node_base_t* succ, type_t type) :
             succ_(succ), type_(type) {}
-
-        node_base_t* succ_;
-        type_t type_;
         
         friend bool operator==(edge_t& lhs, edge_t& rhs)
         {
@@ -40,32 +42,38 @@ namespace detail
         {
             return !(lhs == rhs);
         }
+
+        node_base_t* succ_;
+        type_t type_;
     };
 
     const edge_t null_edge(nullptr, edge_t::type_t::INVALID);
 
     struct node_base_t
     {
-        node_base_t(edge_t next, edge_t pred) :
-            next_(next), pred_(pred) {}
+        node_base_t() :
+            lead_pass_next_(), lead_pass_pred_(),
+            trail_pass_next_(), trail_pass_pred_() {}
 
-        edge_t next_;
-        edge_t pred_;
+        edge_t lead_pass_next_;
+        edge_t lead_pass_pred_;
+        edge_t trail_pass_next_;
+        edge_t trail_pass_pred_;
     };
 
     template<typename T>
     struct node_t : public node_base_t
     {
-        node_t(T data, edge_t next, edge_t pred) :
-            data_(data), node_base_t(next, pred) {}
+        node_t(T data) :
+            data_(data), node_base_t() {}
 
         T data_;
     };
 
     struct header_t : public node_base_t
     {
-        header_t(edge_t first) :
-            node_base_t(first, null_edge) {}
+        header_t() :
+            node_base_t() {}
     };
 
 }
@@ -74,20 +82,20 @@ template<typename T>
 struct tree_iterator
 {
     using node_t = detail::node_t<T>;
+    using node_base_t = detail::node_base_t;
+    using edge_t = detail::edge_t;
 
-    tree_iterator(detail::edge_t edge) :
-        edge_(edge) {}
+    tree_iterator(node_base_t* node) :
+        node_(node) {}
 
     T& operator*()
     {
-        detail::node_base_t* curr_node = edge_.succ_;
-        return static_cast<node_t*>(curr_node)->data_;
+        return static_cast<node_t*>(node_)->data_;
     }
 
     T* operator->()
     {
-        detail::node_base_t* curr_node = edge_.succ_;
-        return &static_cast<node_t*>(curr_node)->data_;
+        return &static_cast<node_t*>(node_)->data_;
     }
 
     tree_iterator& operator++()
@@ -98,7 +106,7 @@ struct tree_iterator
 
     friend bool operator==(tree_iterator& lhs, tree_iterator& rhs)
     {
-        return lhs.edge_ == rhs.edge_;
+        return lhs.node_ == rhs.node_;
     }
 
     friend bool operator!=(tree_iterator& lhs, tree_iterator& rhs)
@@ -107,29 +115,48 @@ struct tree_iterator
     }
 
     private:
-        // the edge with which we entered
-        // current node (edge_.succ_)
-        detail::edge_t edge_;
+        node_base_t* node_;
 };
 
 template<typename T, typename Alloc = std::allocator<T>>
 struct tree
 {
     using iterator = tree_iterator<T>;
-    tree() :
-        header_(detail::edge_t(&header_, detail::edge_t::type_t::TRAILING)) {}
+
+    tree() : header_()
+    {
+        make_leaf(&header_);
+    }
 
     iterator begin()
     {
-        return iterator(header_.next_);
+        return iterator(header_.lead_pass_next_.succ_);
     }
 
     iterator end()
     {
-        return iterator(detail::edge_t(&header_, detail::edge_t::type_t::TRAILING));
+        return iterator(&header_);
     }
 
     private:
+        using node_base_t = detail::node_base_t;
+        using edge_t = detail::edge_t;
+        using node_t = detail::node_t<T>;
+
+        // allocator breed
+        using alloc = typename std::allocator_traits<Alloc>::template rebind_alloc<T>;
+        using alloc_traits = std::allocator_traits<alloc>;
+        using node_alloc = typename alloc_traits::template rebind_alloc<node_t>;
+        using node_alloc_traits = std::allocator_traits<node_alloc>;
+
+        // binds lead_pass_next
+        // and trail_pass_pred
+        void make_leaf(node_base_t* node)
+        {
+            node->lead_pass_next_.succ_ = node->trail_pass_pred_.succ_ = node;
+            node->lead_pass_next_.type_ = node->trail_pass_pred_.type_ = edge_t::type_t::TRAILING;
+        }
+
         detail::header_t header_;
 };
 
