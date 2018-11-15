@@ -12,6 +12,8 @@ void Dump(Iter first, Iter last)
 
 auto main() -> int
 {
-    //
+    tree::tree<int> empty_one;
+    std::cout << "Empty tree:" << std::endl;
+    Dump(empty_one.begin(), empty_one.end());
     return 0;
 }
