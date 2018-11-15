@@ -100,7 +100,58 @@ struct tree_iterator
 
     tree_iterator& operator++()
     {
-        // smth wise
+        edge_t cur_edge;
+        node_base_t* cur_node;
+        // passing trailing edges
+        for (cur_edge = node_->lead_pass_next_,
+             cur_node = node_;
+             cur_edge.type_ == edge_t::type_t::TRAILING;
+             cur_node = cur_edge.succ_,
+             cur_edge = cur_edge.succ_->trail_pass_next_);
+        
+        if (cur_edge.type_ == edge_t::type_t::LEADING)
+        {
+            node_ = cur_edge.succ_;
+        }
+        else
+        {
+            // reached the end
+            assert(cur_edge.type_ == edge_t::type_t::INVALID);
+            assert(!cur_edge.succ_ && "must be nullptr for the end");
+            node_ = cur_node;
+        }
+        return *this;
+    }
+
+    tree_iterator& operator--()
+    {
+        node_base_t* cur_node = node_;
+        // stepping 1 leading edge back
+        // unless we're in the end
+        if (node_->lead_pass_pred_.succ_)
+        {
+            assert(node_->lead_pass_pred_.type_ == edge_t::type_t::INVALID &&
+                "must be invalid for the end");
+            cur_node = node_->lead_pass_pred_.succ_;
+        }
+
+        edge_t cur_edge;
+        // passing trailing edges back
+        // works ok with curr_node == header
+        for (cur_edge = cur_node->trail_pass_pred_;
+             cur_edge.type_ == edge_t::type_t::TRAILING;
+             cur_node = cur_edge.succ_,
+             cur_edge = cur_edge.succ_->trail_pass_pred_);
+        
+        // if we reached header
+        if (!cur_edge.succ_)
+        {
+            assert(cur_edge.type_ == edge_t::type_t::INVALID &&
+                "must be invalid for the header");
+            assert(0 && "--begin() - bad");
+        }
+
+        node_ = cur_node;
         return *this;
     }
 
