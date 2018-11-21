@@ -9,6 +9,13 @@
 #include <memory>
 #include <array>
 
+template<typename Iter>
+void Dump(Iter first, Iter last)
+{
+    std::for_each(first, last, [] (const auto& elem) {std::cout << elem << " ";});
+    std::cout << std::endl;
+}
+
 namespace tree
 {
 
@@ -16,44 +23,24 @@ namespace detail
 {
     struct node_base_t;
 
-    enum pass_t
+    struct pass_t
     {
-        LEADING = 0,
-        TRAILING,
-        SIZE_OF
-    };
-
-    struct edge_t
-    {
-        edge_t() :
-            succ_(nullptr), pass_(pass_t::SIZE_OF) {}
-
-        friend bool operator==(edge_t& lhs, edge_t& rhs)
+        enum type_t
         {
-            return lhs.succ_ == rhs.succ_ &&
-                   lhs.pass_ == rhs.pass_;
-        }
-        
-        friend bool operator!=(edge_t& lhs, edge_t& rhs)
-        {
-            return !(lhs == rhs);
-        }
-
-        node_base_t* succ_;
-        pass_t pass_;
-    };
-
-    struct node_base_t
-    {
-        using edge_seq_t = std::array<edge_t, pass_t::SIZE_OF>;
+            LEAD = 0,
+            TAIL
+        };
 
         enum direction_t
         {
-            NEXT,
+            NEXT = 0,
             PRED
         };
 
-        edge_seq_t& next_pred(direction_t dir)
+        pass_t(node_base_t* node, type_t type) :
+            node_(node), type_(type) {}
+
+        pass_t* get(direction_t dir)
         {
             if (dir == direction_t::NEXT)
             {
@@ -65,8 +52,33 @@ namespace detail
             }
         }
 
-        edge_seq_t next_;
-        edge_seq_t pred_;
+        node_base_t* node_;
+        type_t type_;
+
+        pass_t* next_;
+        pass_t* pred_;
+    };
+
+    struct node_base_t
+    {
+        node_base_t() :
+            lead_(this, pass_t::type_t::LEAD),
+            tail_(this, pass_t::type_t::TAIL) {}
+
+        pass_t& get(pass_t::type_t type)
+        {
+            if (type == pass_t::type_t::LEAD)
+            {
+                return lead_;
+            }
+            else
+            {
+                return tail_;
+            }
+        }
+
+        pass_t lead_;
+        pass_t tail_;
     };
 
     template<typename T>
@@ -87,16 +99,15 @@ namespace detail
             node_base_t() {}
     };
 
-    // TODO: smth better
-    pass_t opposite_pass(pass_t type)
+    pass_t::type_t opposite_pass_type(pass_t::type_t type)
     {
         switch (type)
         {
-            case pass_t::LEADING:
-                return pass_t::TRAILING;
+            case pass_t::type_t::LEAD:
+                return pass_t::type_t::TAIL;
 
-            case pass_t::TRAILING:
-                return pass_t::LEADING;
+            case pass_t::type_t::TAIL:
+                return pass_t::type_t::LEAD;
 
             default:
                 assert(0 && "wrong argument");
@@ -107,20 +118,19 @@ namespace detail
 template<typename T>
 struct tree_iterator
 {
-    using pass_t = detail::pass_t;
     using node_t = detail::node_t<T>;
     using node_base_t = detail::node_base_t;
-    using edge_t = detail::edge_t;
-    using direction_t = detail::node_base_t::direction_t;
+    using pass_t = detail::pass_t;
+    using direction_t = detail::pass_t::direction_t;
 
-    // wanted smth like this and use in place of pass_t
+    // wanted smth like this and use in place of pass_type_t
     //enum traversal_t
     //{
-    //    PRE_ORDER = detail::pass_t::LEADING,
-    //    POST_ORDER = detail::pass_t::TRAILING
+    //    PRE_ORDER = detail::pass_type_t::LEADING,
+    //    POST_ORDER = detail::pass_type_t::TRAILING
     //};
 
-    using traversal_t = detail::pass_t;
+    using traversal_t = detail::pass_t::type_t;
 
     tree_iterator(node_base_t* node, traversal_t traversal) :
         node_(node), traversal_(traversal) {}
@@ -137,19 +147,20 @@ struct tree_iterator
 
     tree_iterator& operator++()
     {
-        inc_dec(direction_t::NEXT);
+        traverse(direction_t::NEXT);
         return *this;
     }
 
     tree_iterator& operator--()
     {
-        inc_dec(direction_t::PRED);
+        traverse(direction_t::PRED);
         return *this;
     }
 
-    friend bool operator==(tree_iterator& lhs, tree_iterator& rhs)
+    friend bool operator==(const tree_iterator& lhs, const tree_iterator& rhs)
     {
-        return lhs.node_ == rhs.node_;
+        return lhs.node_ == rhs.node_ &&
+               lhs.traversal_ == rhs.traversal_;
     }
 
     friend bool operator!=(tree_iterator& lhs, tree_iterator& rhs)
@@ -161,37 +172,34 @@ struct tree_iterator
     traversal_t traversal_;
 
     private:
-        void inc_dec(direction_t dir)
+        void traverse(direction_t dir)
         {
-            pass_t considered_pass = traversal_;
-            pass_t opposite_pass = detail::opposite_pass(considered_pass);
+            pass_t::type_t consider_type = traversal_;
+            pass_t::type_t opposite_type = detail::opposite_pass_type(consider_type);
 
-            edge_t cur_edge;
+            pass_t* cur_pass = nullptr;
             // passing edges leading to opposite pass
-            for (cur_edge = node_->next_pred(dir)[considered_pass];
-                 cur_edge.pass_ == opposite_pass;
-                 cur_edge = cur_edge.succ_->next_pred(dir)[opposite_pass]);
+            for (cur_pass = node_->get(consider_type).get(dir);
+                 cur_pass->type_ == opposite_type;
+                 cur_pass = cur_pass->get(dir));
             
-            assert(cur_edge.pass_ == considered_pass);
-            node_ = cur_edge.succ_;
+            assert(cur_pass->type_ == consider_type);
+            node_ = cur_pass->node_;
         }
 };
 
-template<typename T, typename Alloc = std::allocator<T>>
-struct tree
+template<typename T>
+struct PostOrder
 {
     using iterator = tree_iterator<T>;
+    using header_t = detail::header_t;
 
-    tree() : header_()
-    {
-        make_header(&header_);
-        make_leaf(&header_);
-    }
+    PostOrder(header_t& header) :
+        header_(header) {}
 
     iterator end()
     {
-                                                       //PRE_ORDER
-        return iterator(&header_, iterator::traversal_t::LEADING);
+        return iterator(&header_, iterator::traversal_t::TAIL);
     }
 
     iterator begin()
@@ -200,39 +208,90 @@ struct tree
         return ++end();
     }
 
+    private:
+        header_t& header_;
+};
+
+template<typename T, typename Alloc = std::allocator<T>>
+struct tree
+{
+    using iterator = tree_iterator<T>;
+
+    tree() : header_(), size_(0)
+    {
+        make_header(&header_);
+        make_leaf(&header_);
+    }
+
+    // TODO: implement
+    tree(const tree&) = delete;
+    tree(tree&&) = delete;
+    tree& operator=(const tree&) = delete;
+    tree& operator=(tree&&) = delete;
+
+    iterator end()
+    {
+        return iterator(&header_, iterator::traversal_t::LEAD);
+    }
+
+    iterator begin()
+    {
+        // genial, isn't it
+        return ++end();
+    }
+
+    PostOrder<T> GetPostOrder()
+    {
+        return PostOrder<T>(header_);
+    }
+
     iterator insert(iterator pos, const T& value)
     {
-        // new node iserts before trailing pass
-        node_base_t* next_node = pos.node_;
-        pass_t next_pass = pass_t::TRAILING;
-
+        // new node iserts before tail
+        pass_t& next_pass = pos.node_->tail_;
         // new node's pred
-        edge_t pred_edge = next_node->pred_[next_pass];
-        node_base_t* pred_node = pred_edge.succ_;
-        pass_t pred_pass = pred_edge.pass_;
+        pass_t& pred_pass = *next_pass.pred_;
 
         node_base_t* new_node = create_node(value);
         
         // binding
         make_leaf(new_node);
+        new_node->tail_.next_ = &next_pass;
+        new_node->lead_.pred_ = &pred_pass;
+        next_pass.pred_ = &new_node->tail_;
+        pred_pass.next_ = &new_node->lead_;
 
-        new_node->next_[pass_t::TRAILING].succ_ = next_node;
-        new_node->next_[pass_t::TRAILING].pass_ = next_pass;
-        next_node->pred_[next_pass].succ_ = new_node;
-        next_node->pred_[next_pass].pass_ = pass_t::TRAILING;
+        return iterator(new_node, pass_t::type_t::LEAD);
+    }
+    
+    size_t size() const
+    {
+        return size_;
+    }
 
-        new_node->pred_[pass_t::LEADING].succ_ = pred_node;
-        new_node->pred_[pass_t::LEADING].pass_ = pred_pass;
-        pred_node->next_[pred_pass].succ_ = new_node;
-        pred_node->next_[pred_pass].pass_ = pass_t::LEADING;
+    bool empty() const
+    {
+        return size_ == 0;
+    }
 
-        return iterator(new_node, pass_t::LEADING);
+    void clear()
+    {
+        // TODO: just use post order traversal (faster, though UB is next door)
+        while(!empty())
+        {
+            auto leaf = static_cast<node_t*>(GetPostOrder().begin().node_);
+            delete_leaf(leaf);
+        }
+    }
+
+    ~tree()
+    {
+        clear();
     }
 
     private:
         using pass_t = detail::pass_t;
         using node_base_t = detail::node_base_t;
-        using edge_t = detail::edge_t;
         using node_t = detail::node_t<T>;
 
         // allocator breed
@@ -241,24 +300,20 @@ struct tree
         using node_alloc_t = typename alloc_traits_t::template rebind_alloc<node_t>;
         using node_alloc_traits_t = std::allocator_traits<node_alloc_t>;
 
-        // binds next_[pass_t::LEADING]
-        // and pred_[pass_t::TRAILING]
+        // binds next_[pass_type_t::LEADING]
+        // and pred_[pass_type_t::TRAILING]
         void make_leaf(node_base_t* node)
         {
-            node->next_[pass_t::LEADING].succ_ = node;
-            node->pred_[pass_t::TRAILING].succ_ = node;
-            node->next_[pass_t::LEADING].pass_ = pass_t::TRAILING;
-            node->pred_[pass_t::TRAILING].pass_ = pass_t::LEADING;
+            node->lead_.next_ = &node->tail_;
+            node->tail_.pred_ = &node->lead_;
         }
 
-        // binds next_[pass_t::LEADING]
-        // and pred_[pass_t::TRAILING]
+        // binds next_[pass_type_t::LEADING]
+        // and pred_[pass_type_t::TRAILING]
         void make_header(node_base_t* node)
         {
-            node->pred_[pass_t::LEADING].succ_ = node;
-            node->next_[pass_t::TRAILING].succ_ = node;
-            node->pred_[pass_t::LEADING].pass_ = pass_t::TRAILING;
-            node->next_[pass_t::TRAILING].pass_ = pass_t::LEADING;
+            node->tail_.next_ = &node->lead_;
+            node->lead_.pred_ = &node->tail_;
         }
 
         node_t* create_node(const T& value)
@@ -266,10 +321,34 @@ struct tree
             node_t* new_node = nullptr;
             new_node = node_alloc.allocate(1);
             node_alloc.construct(new_node, value);
+            ++size_;
             return new_node;
         }
 
+        void delete_node(node_t* node)
+        {
+            node_alloc.destroy(node);
+            node_alloc.deallocate(node, 1);
+            --size_;
+        }
+
+        void delete_leaf(node_t* leaf)
+        {
+            assert(leaf->lead_.next_->node_ == leaf &&
+                leaf->tail_.pred_->node_ == leaf &&
+                "wrong argument: must be a leaf");
+            pass_t& pred_pass = *leaf->lead_.pred_;
+            pass_t& next_pass = *leaf->tail_.next_;
+
+            // binding
+            pred_pass.next_ = &next_pass;
+            next_pass.pred_ = &pred_pass;
+
+            delete_node(leaf);
+        }
+
         detail::header_t header_;
+        size_t size_;
         node_alloc_t node_alloc;
 };
 
