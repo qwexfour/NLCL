@@ -10,24 +10,24 @@
 #include <memory>
 
 template<typename T>
-void Dump(T&& any_tree)
+void Dump(T&& any_forest)
 {
-    auto mini_dump = [&any_tree] (auto first, auto last)
+    auto mini_dump = [&any_forest] (auto first, auto last)
     {
         for(auto it = first; it != last; ++it)
         {
-            std::cout << *it << "(l:" << any_tree.get_level(it) << ") ";
+            std::cout << *it << "(l:" << any_forest.get_level(it) << ") ";
         }
         std::cout << std::endl;
     };
 
     std::cout << "In Oreder:" << std::endl;
-    mini_dump(any_tree.begin(), any_tree.end());
+    mini_dump(any_forest.begin(), any_forest.end());
     std::cout << "Post Oreder:" << std::endl;
-    mini_dump(any_tree.get_post_order().begin(), any_tree.get_post_order().end());
+    mini_dump(any_forest.get_post_order().begin(), any_forest.get_post_order().end());
 }
 
-namespace tree
+namespace forestlib
 {
 
 namespace detail
@@ -137,7 +137,7 @@ namespace detail
 }
 
 template<typename T>
-struct tree_iterator
+struct forest_iterator
 {
     using node_t = detail::node_t<T>;
     using node_base_t = detail::node_base_t;
@@ -153,7 +153,7 @@ struct tree_iterator
 
     using traversal_t = detail::pass_t::type_t;
 
-    tree_iterator(node_base_t* node, traversal_t traversal) :
+    forest_iterator(node_base_t* node, traversal_t traversal) :
         node_(node), traversal_(traversal) {}
 
     T& operator*()
@@ -166,25 +166,25 @@ struct tree_iterator
         return &static_cast<node_t*>(node_)->data_;
     }
 
-    tree_iterator& operator++()
+    forest_iterator& operator++()
     {
         traverse(direction_t::NEXT);
         return *this;
     }
 
-    tree_iterator& operator--()
+    forest_iterator& operator--()
     {
         traverse(direction_t::PRED);
         return *this;
     }
 
-    friend bool operator==(const tree_iterator& lhs, const tree_iterator& rhs)
+    friend bool operator==(const forest_iterator& lhs, const forest_iterator& rhs)
     {
         return lhs.node_ == rhs.node_ &&
                lhs.traversal_ == rhs.traversal_;
     }
 
-    friend bool operator!=(tree_iterator& lhs, tree_iterator& rhs)
+    friend bool operator!=(forest_iterator& lhs, forest_iterator& rhs)
     {
         return !(lhs == rhs);
     }
@@ -212,7 +212,7 @@ struct tree_iterator
 template<typename T>
 struct post_order
 {
-    using iterator = tree_iterator<T>;
+    using iterator = forest_iterator<T>;
     using header_t = detail::header_t;
 
     post_order(header_t* header) :
@@ -234,26 +234,26 @@ struct post_order
 };
 
 template<typename T, typename Alloc = std::allocator<T>>
-struct tree
+struct forest
 {
-    using iterator = tree_iterator<T>;
+    using iterator = forest_iterator<T>;
     using level_t = detail::node_base_t::level_t;
 
-    tree() : header_(new header_t), size_(0)
+    forest() : header_(new header_t), size_(0)
     {
         make_header(header_);
         make_leaf(header_);
     }
 
     // TODO: implement
-    tree(const tree&) = delete;
-    tree(tree&& rhs) noexcept : header_(rhs.header_), size_(rhs.size_)
+    forest(const forest&) = delete;
+    forest(forest&& rhs) noexcept : header_(rhs.header_), size_(rhs.size_)
     {
         rhs.header_ = nullptr;
         rhs.size_ = 0;
     }
 
-    tree& operator=(tree&& rhs) noexcept
+    forest& operator=(forest&& rhs) noexcept
     {
         if (this == &rhs)
         {
@@ -264,13 +264,13 @@ struct tree
         return *this;
     }
 
-    ~tree() noexcept
+    ~forest() noexcept
     {
         clear();
         delete header_;
     }
 
-    tree& operator=(const tree&) = delete;
+    forest& operator=(const forest&) = delete;
 
     iterator end()
     {
@@ -283,7 +283,7 @@ struct tree
         return ++end();
     }
 
-    // add for const tree
+    // add for const forest
     post_order<T> get_post_order() noexcept
     {
         return post_order<T>(header_);
@@ -343,7 +343,7 @@ struct tree
         }
     }
 
-    friend void swap(tree& lhs, tree& rhs) noexcept
+    friend void swap(forest& lhs, forest& rhs) noexcept
     {
         std::swap(lhs.size_, rhs.size_);
         std::swap(lhs.header_, rhs.header_);
@@ -409,5 +409,5 @@ struct tree
         size_t size_;
 };
 
-} //tree
+} //forest
 #endif //TREE_LIB
