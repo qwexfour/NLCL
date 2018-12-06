@@ -171,6 +171,12 @@ namespace detail
 template<typename T>
 struct forest_iterator
 {
+    using difference_type = ptrdiff_t;
+    using iterator_category = std::bidirectional_iterator_tag;
+    using value_type = T;
+    using pointer = T*;
+    using reference = T&;
+
     using node_t = detail::node_t<T>;
     using node_base_t = detail::node_base_t;
     using pass_t = detail::pass_t;
@@ -188,12 +194,12 @@ struct forest_iterator
     forest_iterator(node_base_t* node, traversal_t traversal) noexcept :
         node_(node), traversal_(traversal) {}
 
-    T& operator*() const noexcept
+    reference operator*() const noexcept
     {
         return static_cast<node_t*>(node_)->data_;
     }
 
-    T* operator->() const noexcept
+    pointer operator->() const noexcept
     {
         return &static_cast<node_t*>(node_)->data_;
     }
@@ -216,7 +222,7 @@ struct forest_iterator
                lhs.traversal_ == rhs.traversal_;
     }
 
-    friend bool operator!=(forest_iterator& lhs, forest_iterator& rhs) noexcept
+    friend bool operator!=(const forest_iterator& lhs, const forest_iterator& rhs) noexcept
     {
         return !(lhs == rhs);
     }
@@ -244,6 +250,12 @@ struct forest_iterator
 template<typename T>
 struct const_forest_iterator
 {
+    using difference_type = ptrdiff_t;
+    using iterator_category = std::bidirectional_iterator_tag;
+    using value_type = T;
+    using pointer = const T*;
+    using reference = const T&;
+
     using node_t = detail::node_t<T>;
     using node_base_t = detail::node_base_t;
     using pass_t = detail::pass_t;
@@ -254,12 +266,12 @@ struct const_forest_iterator
     const_forest_iterator(const node_base_t* node, traversal_t traversal) noexcept :
         node_(node), traversal_(traversal) {}
 
-    const T& operator*() const noexcept
+    reference operator*() const noexcept
     {
         return static_cast<const node_t*>(node_)->data_;
     }
 
-    const T* operator->() const noexcept
+    pointer operator->() const noexcept
     {
         return &static_cast<const node_t*>(node_)->data_;
     }
@@ -282,7 +294,7 @@ struct const_forest_iterator
                lhs.traversal_ == rhs.traversal_;
     }
 
-    friend bool operator!=(const_forest_iterator& lhs, const_forest_iterator& rhs) noexcept
+    friend bool operator!=(const const_forest_iterator& lhs, const const_forest_iterator& rhs) noexcept
     {
         return !(lhs == rhs);
     }
@@ -350,17 +362,64 @@ struct forest
         // making empty forest
         make_header(header_);
         make_leaf(header_);
+
+        // parent of insertable node
+        // starting from header_ (insert(end(), first))
+        node_base_t* cur_parent = header_;
+        // previously inserted node
+        node_base_t* last_inserted = nullptr;
         
         // copping
+        // exception safety is based on the fact, that
+        // state chahges only only by insert (this function is exception safe)
+        // after each insert *this is a valid forest (equal to rhs's subforest)
         try
         {
-            std::for_each(rhs.begin(), rhs.end(), [] (auto& elem)
+            for (auto it = rhs.begin(); it != rhs.end(); ++it)
+            {
+                auto cur_level = rhs.get_level(it);
+                // distance in levels between node to insert and currnt level
+                auto diff_level = static_cast<int>(cur_level) - static_cast<int>(cur_parent->level_);
+                // parent is the same
+                if (diff_level == 1)
                 {
-                    // smth wise
-                });
+                    auto pos = iterator(cur_parent, iterator::traversal_t::LEAD);
+                    auto new_pos = insert(pos, *it);
+                    last_inserted = new_pos.node_;
+                }
+                else
+                {
+                    // going deeper
+                    if (diff_level > 1)
+                    {
+                        assert(diff_level == 2 && "can go deeper only by one level");
+                        cur_parent = last_inserted;
+                        auto pos = iterator(cur_parent, iterator::traversal_t::LEAD);
+                        auto new_pos = insert(pos, *it);
+                        last_inserted = new_pos.node_;
+                    }
+                    else
+                    {
+                        // rolling back towards header
+                        assert(diff_level < 1);
+                        // how much steps towards header, we have to make
+                        auto steps = -(diff_level - 1);
+                        assert(steps > 0 && "must be at least 1");
+                        for (int i = 0; i < steps; ++i)
+                        {
+                            cur_parent = cur_parent->tail_.next_->node_;
+                        }
+                        // now we know current parent
+                        auto pos = iterator(cur_parent, iterator::traversal_t::LEAD);
+                        auto new_pos = insert(pos, *it);
+                        last_inserted = new_pos.node_;
+                    }
+                }
+            }
         }
         catch(...)
         {
+            clear();
             delete header_;
             throw;
         }
@@ -370,6 +429,17 @@ struct forest
     {
         rhs.header_ = nullptr;
         rhs.size_ = 0;
+    }
+
+    forest& operator=(const forest& rhs)
+    {
+        if (this == &rhs)
+        {
+            return *this;
+        }
+        auto tmp = rhs;
+        swap(tmp, *this);
+        return *this;
     }
 
     forest& operator=(forest&& rhs) noexcept
@@ -388,8 +458,6 @@ struct forest
         clear();
         delete header_;
     }
-
-    forest& operator=(const forest&) = delete;
 
     iterator end()
     {
@@ -419,15 +487,18 @@ struct forest
         return post_order<T>(header_);
     }
 
-    level_t get_level(iterator pos) const noexcept
+    template<typename Iter>
+    level_t get_level(const Iter pos) const noexcept
     {
         return pos.node_->level_;
     }
 
-    bool is_leaf(iterator pos) const noexcept
+    template<typename Iter>
+    bool is_leaf(const Iter pos) const noexcept
     {
         const node_base_t& node = *pos.node_;
         bool res = node.lead_.next_ == &node.tail_;
+        // check if node is in consistancy
         assert(res == (node.tail_.pred_ == &node.lead_));
         return res;
     }
@@ -538,6 +609,23 @@ struct forest
         header_t* header_;
         size_t size_;
 };
+
+template<typename T>
+bool operator==(const forest<T>& lhs, const forest<T>& rhs)
+{
+    if (lhs.size() != rhs.size())
+    {
+        return false;
+    }
+    
+    return std::equal(lhs.begin(), lhs.end(), rhs.begin());
+}
+
+template<typename T>
+bool operator!=(const forest<T>& lhs, const forest<T>& rhs)
+{
+    return !(lhs == rhs);
+}
 
 } //forest
 #endif //TREE_LIB

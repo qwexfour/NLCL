@@ -58,6 +58,16 @@ auto main() -> int
     std::cout << std::endl;
 
     forestlib::forest copied_one = second_one;
+    std::cout << "Is it ok after copying?" << std::endl;
+    if (copied_one == second_one)
+    {
+        std::cout << "Looks like so" << std::endl;
+    }
+    else
+    {
+        std::cout << "No, you f*cked up everything" << std::endl;
+    }
+    std::cout << std::endl;
 
     std::cout << "Does clear work?" << std::endl;
     second_one.clear();
@@ -69,10 +79,6 @@ auto main() -> int
     {
         std::cout << "No, it sucks" << std::endl;
     }
-    std::cout << std::endl;
-
-    std::cout << "Is it ok after copying?" << std::endl;
-    Dump(copied_one);
 
     return 0;
 }
