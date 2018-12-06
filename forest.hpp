@@ -73,6 +73,18 @@ namespace detail
             }
         }
 
+        const pass_t* get(direction_t dir) const
+        {
+            if (dir == direction_t::NEXT)
+            {
+                return next_;
+            }
+            else
+            {
+                return pred_;
+            }
+        }
+
         node_base_t* node_;
         type_t type_;
 
@@ -92,6 +104,18 @@ namespace detail
         node_base_t& operator=(const node_base_t& rhs) = delete;
 
         pass_t& get(pass_t::type_t type)
+        {
+            if (type == pass_t::type_t::LEAD)
+            {
+                return lead_;
+            }
+            else
+            {
+                return tail_;
+            }
+        }
+
+        const pass_t& get(pass_t::type_t type) const
         {
             if (type == pass_t::type_t::LEAD)
             {
@@ -161,38 +185,38 @@ struct forest_iterator
 
     using traversal_t = detail::pass_t::type_t;
 
-    forest_iterator(node_base_t* node, traversal_t traversal) :
+    forest_iterator(node_base_t* node, traversal_t traversal) noexcept :
         node_(node), traversal_(traversal) {}
 
-    T& operator*()
+    T& operator*() const noexcept
     {
         return static_cast<node_t*>(node_)->data_;
     }
 
-    T* operator->()
+    T* operator->() const noexcept
     {
         return &static_cast<node_t*>(node_)->data_;
     }
 
-    forest_iterator& operator++()
+    forest_iterator& operator++() noexcept
     {
         traverse(direction_t::NEXT);
         return *this;
     }
 
-    forest_iterator& operator--()
+    forest_iterator& operator--() noexcept
     {
         traverse(direction_t::PRED);
         return *this;
     }
 
-    friend bool operator==(const forest_iterator& lhs, const forest_iterator& rhs)
+    friend bool operator==(const forest_iterator& lhs, const forest_iterator& rhs) noexcept
     {
         return lhs.node_ == rhs.node_ &&
                lhs.traversal_ == rhs.traversal_;
     }
 
-    friend bool operator!=(forest_iterator& lhs, forest_iterator& rhs)
+    friend bool operator!=(forest_iterator& lhs, forest_iterator& rhs) noexcept
     {
         return !(lhs == rhs);
     }
@@ -201,12 +225,78 @@ struct forest_iterator
     traversal_t traversal_;
 
     private:
-        void traverse(direction_t dir)
+        void traverse(direction_t dir) noexcept
         {
             pass_t::type_t consider_type = traversal_;
             pass_t::type_t opposite_type = detail::opposite_pass_type(consider_type);
 
             pass_t* cur_pass = nullptr;
+            // passing edges leading to opposite pass
+            for (cur_pass = node_->get(consider_type).get(dir);
+                 cur_pass->type_ == opposite_type;
+                 cur_pass = cur_pass->get(dir));
+            
+            assert(cur_pass->type_ == consider_type);
+            node_ = cur_pass->node_;
+        }
+};
+
+template<typename T>
+struct const_forest_iterator
+{
+    using node_t = detail::node_t<T>;
+    using node_base_t = detail::node_base_t;
+    using pass_t = detail::pass_t;
+    using direction_t = detail::pass_t::direction_t;
+
+    using traversal_t = detail::pass_t::type_t;
+
+    const_forest_iterator(const node_base_t* node, traversal_t traversal) noexcept :
+        node_(node), traversal_(traversal) {}
+
+    const T& operator*() const noexcept
+    {
+        return static_cast<const node_t*>(node_)->data_;
+    }
+
+    const T* operator->() const noexcept
+    {
+        return &static_cast<const node_t*>(node_)->data_;
+    }
+
+    const_forest_iterator& operator++() noexcept
+    {
+        traverse(direction_t::NEXT);
+        return *this;
+    }
+
+    const_forest_iterator& operator--() noexcept
+    {
+        traverse(direction_t::PRED);
+        return *this;
+    }
+
+    friend bool operator==(const const_forest_iterator& lhs, const const_forest_iterator& rhs) noexcept
+    {
+        return lhs.node_ == rhs.node_ &&
+               lhs.traversal_ == rhs.traversal_;
+    }
+
+    friend bool operator!=(const_forest_iterator& lhs, const_forest_iterator& rhs) noexcept
+    {
+        return !(lhs == rhs);
+    }
+
+    const node_base_t* node_;
+    traversal_t traversal_;
+
+    private:
+        void traverse(direction_t dir) noexcept
+        {
+            pass_t::type_t consider_type = traversal_;
+            pass_t::type_t opposite_type = detail::opposite_pass_type(consider_type);
+
+            const pass_t* cur_pass = nullptr;
             // passing edges leading to opposite pass
             for (cur_pass = node_->get(consider_type).get(dir);
                  cur_pass->type_ == opposite_type;
@@ -245,6 +335,7 @@ template<typename T, typename Alloc = std::allocator<T>>
 struct forest
 {
     using iterator = forest_iterator<T>;
+    using const_iterator = const_forest_iterator<T>;
     using level_t = detail::node_base_t::level_t;
 
     forest() : header_(new header_t), size_(0)
@@ -263,9 +354,14 @@ struct forest
         // copping
         try
         {
+            std::for_each(rhs.begin(), rhs.end(), [] (auto& elem)
+                {
+                    // smth wise
+                });
         }
         catch(...)
         {
+            delete header_;
             throw;
         }
     }
@@ -301,6 +397,17 @@ struct forest
     }
 
     iterator begin()
+    {
+        // genial, isn't it
+        return ++end();
+    }
+
+    const_iterator end() const
+    {
+        return const_iterator(header_, iterator::traversal_t::LEAD);
+    }
+
+    const_iterator begin() const
     {
         // genial, isn't it
         return ++end();
