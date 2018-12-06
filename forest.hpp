@@ -21,10 +21,18 @@ void Dump(T&& any_forest)
         std::cout << std::endl;
     };
 
-    std::cout << "In Oreder:" << std::endl;
-    mini_dump(any_forest.begin(), any_forest.end());
-    std::cout << "Post Oreder:" << std::endl;
-    mini_dump(any_forest.get_post_order().begin(), any_forest.get_post_order().end());
+    if (any_forest.empty())
+    {
+        std::cout << "Forest is empty" << std::endl;
+    }
+    else
+    {
+        std::cout << "Forest has " << any_forest.size() << " nodes." << std::endl;
+        std::cout << "In Oreder:" << std::endl;
+        mini_dump(any_forest.begin(), any_forest.end());
+        std::cout << "Post Oreder:" << std::endl;
+        mini_dump(any_forest.get_post_order().begin(), any_forest.get_post_order().end());
+    }
 }
 
 namespace forestlib
@@ -246,7 +254,22 @@ struct forest
     }
 
     // TODO: implement
-    forest(const forest&) = delete;
+    forest(const forest& rhs) : header_(new header_t), size_(0)
+    {
+        // making empty forest
+        make_header(header_);
+        make_leaf(header_);
+        
+        // copping
+        try
+        {
+        }
+        catch(...)
+        {
+            throw;
+        }
+    }
+
     forest(forest&& rhs) noexcept : header_(rhs.header_), size_(rhs.size_)
     {
         rhs.header_ = nullptr;

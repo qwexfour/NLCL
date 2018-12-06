@@ -10,6 +10,7 @@ auto main() -> int
     std::cout << "Can I do at least empty forest:" << std::endl;
     std::cout << "Tree has " << empty_one.size() << " nodes." << std::endl;
     Dump(empty_one);
+    std::cout << std::endl;
 
     forestlib::forest<long> first_one;
     first_one.insert(first_one.end(), 1);
@@ -17,10 +18,12 @@ auto main() -> int
     std::cout << "We've got insert:" << std::endl;
     std::cout << "Tree has " << first_one.size() << " nodes." << std::endl;
     Dump(first_one);
+    std::cout << std::endl;
    
     auto move_forest = std::move(first_one);
     std::cout << "Moved the one above" << std::endl;
-    //Dump(move_forest);
+    Dump(move_forest);
+    std::cout << std::endl;
 
     /*
      *      forest
@@ -51,8 +54,10 @@ auto main() -> int
     assert(second_one.is_leaf(second_one.insert(three, 4)));
     assert(second_one.is_leaf(second_one.insert(three, 5)));
     
-    std::cout << "Tree has " << second_one.size() << " nodes." << std::endl;
     Dump(second_one);
+    std::cout << std::endl;
+
+    forestlib::forest copied_one = second_one;
 
     std::cout << "Does clear work?" << std::endl;
     second_one.clear();
@@ -64,7 +69,10 @@ auto main() -> int
     {
         std::cout << "No, it sucks" << std::endl;
     }
+    std::cout << std::endl;
 
+    std::cout << "Is it ok after copying?" << std::endl;
+    Dump(copied_one);
 
     return 0;
 }
