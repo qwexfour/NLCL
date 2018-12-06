@@ -3,17 +3,28 @@
 
 #include <cassert>
 #include <algorithm>
+#include <utility>
 #include <deque>
 #include <iostream>
 #include <variant>
 #include <memory>
-#include <array>
 
-template<typename Iter>
-void Dump(Iter first, Iter last)
+template<typename T>
+void Dump(T&& any_tree)
 {
-    std::for_each(first, last, [] (const auto& elem) {std::cout << elem << " ";});
-    std::cout << std::endl;
+    auto mini_dump = [&any_tree] (auto first, auto last)
+    {
+        for(auto it = first; it != last; ++it)
+        {
+            std::cout << *it << "(l:" << any_tree.get_level(it) << ") ";
+        }
+        std::cout << std::endl;
+    };
+
+    std::cout << "In Oreder:" << std::endl;
+    mini_dump(any_tree.begin(), any_tree.end());
+    std::cout << "Post Oreder:" << std::endl;
+    mini_dump(any_tree.get_post_order().begin(), any_tree.get_post_order().end());
 }
 
 namespace tree
@@ -38,7 +49,9 @@ namespace detail
         };
 
         pass_t(node_base_t* node, type_t type) :
-            node_(node), type_(type) {}
+            node_(node), type_(type), next_(nullptr), pred_(nullptr) {}
+
+        pass_t(const pass_t&) = delete;
 
         pass_t* get(direction_t dir)
         {
@@ -61,9 +74,14 @@ namespace detail
 
     struct node_base_t
     {
-        node_base_t() :
+        using level_t = unsigned;
+        node_base_t(level_t level = 0) :
             lead_(this, pass_t::type_t::LEAD),
-            tail_(this, pass_t::type_t::TAIL) {}
+            tail_(this, pass_t::type_t::TAIL),
+            level_(level) {}
+
+        node_base_t(const node_base_t& rhs) = delete;
+        node_base_t& operator=(const node_base_t& rhs) = delete;
 
         pass_t& get(pass_t::type_t type)
         {
@@ -79,16 +97,19 @@ namespace detail
 
         pass_t lead_;
         pass_t tail_;
+        level_t level_;
     };
 
     template<typename T>
     struct node_t : public node_base_t
     {
-        node_t(const T& data) :
-            node_base_t(), data_(data) {}
+        using level_t = node_base_t::level_t;
 
-        node_t(T&& data) :
-            node_base_t(), data_(std::move(data)) {}
+        node_t(const T& data, level_t level = 0) :
+            node_base_t(level), data_(data) {}
+
+        node_t(T&& data, level_t level = 0) :
+            node_base_t(level), data_(std::move(data)) {}
 
         T data_;
     };
@@ -189,17 +210,17 @@ struct tree_iterator
 };
 
 template<typename T>
-struct PostOrder
+struct post_order
 {
     using iterator = tree_iterator<T>;
     using header_t = detail::header_t;
 
-    PostOrder(header_t& header) :
+    post_order(header_t* header) :
         header_(header) {}
 
     iterator end()
     {
-        return iterator(&header_, iterator::traversal_t::TAIL);
+        return iterator(header_, iterator::traversal_t::TAIL);
     }
 
     iterator begin()
@@ -209,29 +230,51 @@ struct PostOrder
     }
 
     private:
-        header_t& header_;
+        header_t* header_;
 };
 
 template<typename T, typename Alloc = std::allocator<T>>
 struct tree
 {
     using iterator = tree_iterator<T>;
+    using level_t = detail::node_base_t::level_t;
 
-    tree() : header_(), size_(0)
+    tree() : header_(new header_t), size_(0)
     {
-        make_header(&header_);
-        make_leaf(&header_);
+        make_header(header_);
+        make_leaf(header_);
     }
 
     // TODO: implement
     tree(const tree&) = delete;
-    tree(tree&&) = delete;
+    tree(tree&& rhs) noexcept : header_(rhs.header_), size_(rhs.size_)
+    {
+        rhs.header_ = nullptr;
+        rhs.size_ = 0;
+    }
+
+    tree& operator=(tree&& rhs) noexcept
+    {
+        if (this == &rhs)
+        {
+            return *this;
+        }
+        auto tmp = std::move(rhs);
+        swap(tmp, *this);
+        return *this;
+    }
+
+    ~tree() noexcept
+    {
+        clear();
+        delete header_;
+    }
+
     tree& operator=(const tree&) = delete;
-    tree& operator=(tree&&) = delete;
 
     iterator end()
     {
-        return iterator(&header_, iterator::traversal_t::LEAD);
+        return iterator(header_, iterator::traversal_t::LEAD);
     }
 
     iterator begin()
@@ -240,9 +283,23 @@ struct tree
         return ++end();
     }
 
-    PostOrder<T> GetPostOrder()
+    // add for const tree
+    post_order<T> get_post_order() noexcept
     {
-        return PostOrder<T>(header_);
+        return post_order<T>(header_);
+    }
+
+    level_t get_level(iterator pos) const noexcept
+    {
+        return pos.node_->level_;
+    }
+
+    bool is_leaf(iterator pos) const noexcept
+    {
+        const node_base_t& node = *pos.node_;
+        bool res = node.lead_.next_ == &node.tail_;
+        assert(res == (node.tail_.pred_ == &node.lead_));
+        return res;
     }
 
     iterator insert(iterator pos, const T& value)
@@ -251,8 +308,10 @@ struct tree
         pass_t& next_pass = pos.node_->tail_;
         // new node's pred
         pass_t& pred_pass = *next_pass.pred_;
+        // new node's level
+        level_t level = get_level(pos) + 1;
 
-        node_base_t* new_node = create_node(value);
+        node_base_t* new_node = create_node(value, level);
         
         // binding
         make_leaf(new_node);
@@ -264,35 +323,37 @@ struct tree
         return iterator(new_node, pass_t::type_t::LEAD);
     }
     
-    size_t size() const
+    size_t size() const noexcept
     {
         return size_;
     }
 
-    bool empty() const
+    bool empty() const noexcept
     {
         return size_ == 0;
     }
 
-    void clear()
+    void clear() noexcept
     {
         // TODO: just use post order traversal (faster, though UB is next door)
         while(!empty())
         {
-            auto leaf = static_cast<node_t*>(GetPostOrder().begin().node_);
+            auto leaf = static_cast<node_t*>(get_post_order().begin().node_);
             delete_leaf(leaf);
         }
     }
 
-    ~tree()
+    friend void swap(tree& lhs, tree& rhs) noexcept
     {
-        clear();
+        std::swap(lhs.size_, rhs.size_);
+        std::swap(lhs.header_, rhs.header_);
     }
 
     private:
         using pass_t = detail::pass_t;
         using node_base_t = detail::node_base_t;
         using node_t = detail::node_t<T>;
+        using header_t = detail::header_t;
 
         // allocator breed
         using alloc_t = typename std::allocator_traits<Alloc>::template rebind_alloc<T>;
@@ -302,7 +363,7 @@ struct tree
 
         // binds next_[pass_type_t::LEADING]
         // and pred_[pass_type_t::TRAILING]
-        void make_leaf(node_base_t* node)
+        static void make_leaf(node_base_t* node) noexcept
         {
             node->lead_.next_ = &node->tail_;
             node->tail_.pred_ = &node->lead_;
@@ -310,29 +371,26 @@ struct tree
 
         // binds next_[pass_type_t::LEADING]
         // and pred_[pass_type_t::TRAILING]
-        void make_header(node_base_t* node)
+        static void make_header(node_base_t* node) noexcept
         {
             node->tail_.next_ = &node->lead_;
             node->lead_.pred_ = &node->tail_;
         }
 
-        node_t* create_node(const T& value)
+        node_t* create_node(const T& value, level_t level)
         {
-            node_t* new_node = nullptr;
-            new_node = node_alloc.allocate(1);
-            node_alloc.construct(new_node, value);
+            auto new_node = new node_t (value, level);
             ++size_;
             return new_node;
         }
 
-        void delete_node(node_t* node)
+        void delete_node(node_t* node) noexcept
         {
-            node_alloc.destroy(node);
-            node_alloc.deallocate(node, 1);
+            delete node;
             --size_;
         }
 
-        void delete_leaf(node_t* leaf)
+        void delete_leaf(node_t* leaf) noexcept
         {
             assert(leaf->lead_.next_->node_ == leaf &&
                 leaf->tail_.pred_->node_ == leaf &&
@@ -347,9 +405,8 @@ struct tree
             delete_node(leaf);
         }
 
-        detail::header_t header_;
+        header_t* header_;
         size_t size_;
-        node_alloc_t node_alloc;
 };
 
 } //tree

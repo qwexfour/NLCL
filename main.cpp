@@ -1,5 +1,6 @@
 #include <iostream>
 #include <algorithm>
+#include <cassert>
 
 #include "tree.hpp"
 
@@ -8,15 +9,19 @@ auto main() -> int
     tree::tree<int> empty_one;
     std::cout << "Can I do at least empty tree:" << std::endl;
     std::cout << "Tree has " << empty_one.size() << " nodes." << std::endl;
-    Dump(empty_one.begin(), empty_one.end());
+    Dump(empty_one);
 
     tree::tree<long> first_one;
     first_one.insert(first_one.end(), 1);
     first_one.insert(first_one.end(), 2);
     std::cout << "We've got insert:" << std::endl;
     std::cout << "Tree has " << first_one.size() << " nodes." << std::endl;
-    Dump(first_one.begin(), first_one.end());
+    Dump(first_one);
    
+    auto move_tree = std::move(first_one);
+    std::cout << "Moved the one above" << std::endl;
+    //Dump(move_tree);
+
     /*
      *      forest
      *      /    \
@@ -43,14 +48,11 @@ auto main() -> int
     second_one.insert(left_subtree, 2);
     
     auto three = second_one.insert(left_subtree, 3);
-    second_one.insert(three, 4);
-    second_one.insert(three, 5);
+    assert(second_one.is_leaf(second_one.insert(three, 4)));
+    assert(second_one.is_leaf(second_one.insert(three, 5)));
     
     std::cout << "Tree has " << second_one.size() << " nodes." << std::endl;
-    std::cout << "In order traversal:" << std::endl;
-    Dump(second_one.begin(), second_one.end());
-    std::cout << "Post order traversal:" << std::endl;
-    Dump(second_one.GetPostOrder().begin(), second_one.GetPostOrder().end());
+    Dump(second_one);
 
     std::cout << "Does clear work?" << std::endl;
     second_one.clear();
@@ -62,6 +64,7 @@ auto main() -> int
     {
         std::cout << "No, it sucks" << std::endl;
     }
+
 
     return 0;
 }
