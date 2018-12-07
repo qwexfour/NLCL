@@ -496,11 +496,7 @@ struct forest
     template<typename Iter>
     bool is_leaf(const Iter pos) const noexcept
     {
-        const node_base_t& node = *pos.node_;
-        bool res = node.lead_.next_ == &node.tail_;
-        // check if node is in consistancy
-        assert(res == (node.tail_.pred_ == &node.lead_));
-        return res;
+        return is_leaf(pos.node_);
     }
 
     iterator insert(iterator pos, const T& value)
@@ -512,7 +508,7 @@ struct forest
         // new node's level
         level_t level = get_level(pos) + 1;
 
-        node_base_t* new_node = create_node(value, level);
+        node_base_t* new_node = construct_node(value, level);
         
         // binding
         make_leaf(new_node);
@@ -536,11 +532,10 @@ struct forest
 
     void clear() noexcept
     {
-        // TODO: just use post order traversal (faster, though UB is next door)
         while(!empty())
         {
-            auto leaf = static_cast<node_t*>(get_post_order().begin().node_);
-            delete_leaf(leaf);
+            auto node = begin().node_;
+            dumb_delete_node(node);
         }
     }
 
@@ -578,20 +573,28 @@ struct forest
             node->lead_.pred_ = &node->tail_;
         }
 
-        node_t* create_node(const T& value, level_t level)
+        bool is_leaf(node_base_t* node) const noexcept
+        {
+            bool res = node->lead_.next_ == &node->tail_;
+            // check if node is in consistancy
+            assert(res == (node->tail_.pred_ == &node->lead_));
+            return res;
+        }
+
+        node_t* construct_node(const T& value, level_t level)
         {
             auto new_node = new node_t (value, level);
             ++size_;
             return new_node;
         }
 
-        void delete_node(node_t* node) noexcept
+        void destruct_node(node_t* node) noexcept
         {
             delete node;
             --size_;
         }
 
-        void delete_leaf(node_t* leaf) noexcept
+        void delete_leaf(node_base_t* leaf) noexcept
         {
             assert(leaf->lead_.next_->node_ == leaf &&
                 leaf->tail_.pred_->node_ == leaf &&
@@ -603,7 +606,42 @@ struct forest
             pred_pass.next_ = &next_pass;
             next_pass.pred_ = &pred_pass;
 
-            delete_node(leaf);
+            destruct_node(static_cast<node_t*>(leaf));
+        }
+
+        // corrects nothing after deletion (level etc.)
+        // except size
+        void dumb_delete_internal(node_base_t* node) noexcept
+        {
+            assert(node->lead_.next_->node_ != node &&
+                node->tail_.pred_->node_ != node &&
+                "wrong argument: must be an internal node");
+
+            // rebinding
+            // [pred_pass]--X-->[node->pass]--X-->[next_pass]
+            //           \                          ^
+            //            \_________________________|
+            
+            // lead pass
+            (node->lead_.pred_)->next_ = node->lead_.next_;
+            (node->lead_.next_)->pred_ = node->lead_.pred_;
+            // tail pass
+            (node->tail_.pred_)->next_ = node->tail_.next_;
+            (node->tail_.next_)->pred_ = node->tail_.pred_;
+
+            destruct_node(static_cast<node_t*>(node));
+        }
+
+        void dumb_delete_node(node_base_t* node)
+        {
+            if (is_leaf(node))
+            {
+                delete_leaf(node);
+            }
+            else
+            {
+                dumb_delete_internal(node);
+            }
         }
 
         header_t* header_;
