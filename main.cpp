@@ -79,6 +79,19 @@ auto main() -> int
     {
         std::cout << "No, it sucks" << std::endl;
     }
+    std::cout << std::endl;
+
+    std::cout << "Ok, can I erase smth" << std::endl;
+    // [1]
+    auto internal_node = copied_one.begin();
+    // [5]
+    auto leaf = --(--copied_one.end());
+    std::cout << "Erased [" << *leaf << "]:" << std::endl;
+    copied_one.erase(leaf);
+    Dump(copied_one);
+    std::cout << "Erased [" << *internal_node << "]:" << std::endl;
+    copied_one.erase(internal_node);
+    Dump(copied_one);
 
     return 0;
 }

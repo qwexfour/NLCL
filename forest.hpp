@@ -28,9 +28,9 @@ void Dump(T&& any_forest)
     else
     {
         std::cout << "Forest has " << any_forest.size() << " nodes." << std::endl;
-        std::cout << "In Oreder:" << std::endl;
+        std::cout << "In Order:" << std::endl;
         mini_dump(any_forest.begin(), any_forest.end());
-        std::cout << "Post Oreder:" << std::endl;
+        std::cout << "Post Order:" << std::endl;
         mini_dump(any_forest.get_post_order().begin(), any_forest.get_post_order().end());
     }
 }
@@ -210,10 +210,24 @@ struct forest_iterator
         return *this;
     }
 
+    forest_iterator operator++(int) noexcept
+    {
+        auto tmp = *this;
+        ++(*this);
+        return tmp;
+    }
+
     forest_iterator& operator--() noexcept
     {
         traverse(direction_t::PRED);
         return *this;
+    }
+
+    forest_iterator operator--(int) noexcept
+    {
+        auto tmp = *this;
+        --(*this);
+        return tmp;
     }
 
     friend bool operator==(const forest_iterator& lhs, const forest_iterator& rhs) noexcept
@@ -282,10 +296,24 @@ struct const_forest_iterator
         return *this;
     }
 
+    const_forest_iterator operator++(int) noexcept
+    {
+        auto tmp = *this;
+        ++(*this);
+        return tmp;
+    }
+
     const_forest_iterator& operator--() noexcept
     {
         traverse(direction_t::PRED);
         return *this;
+    }
+
+    const_forest_iterator operator--(int) noexcept
+    {
+        auto tmp = *this;
+        --(*this);
+        return tmp;
     }
 
     friend bool operator==(const const_forest_iterator& lhs, const const_forest_iterator& rhs) noexcept
@@ -343,7 +371,7 @@ struct post_order
         header_t* header_;
 };
 
-template<typename T, typename Alloc = std::allocator<T>>
+template<typename T>
 struct forest
 {
     using iterator = forest_iterator<T>;
@@ -509,6 +537,9 @@ struct forest
         level_t level = get_level(pos) + 1;
 
         node_base_t* new_node = construct_node(value, level);
+
+        // Kalbs line
+        //---------------------------------------------------
         
         // binding
         make_leaf(new_node);
@@ -517,7 +548,14 @@ struct forest
         next_pass.pred_ = &new_node->tail_;
         pred_pass.next_ = &new_node->lead_;
 
-        return iterator(new_node, pass_t::type_t::LEAD);
+        return iterator(new_node, pos.traversal_);
+    }
+
+    iterator erase(iterator pos) noexcept
+    {
+        auto tmp = pos;
+        wise_delete_node(pos.node_);
+        return ++tmp;
     }
     
     size_t size() const noexcept
@@ -550,12 +588,6 @@ struct forest
         using node_base_t = detail::node_base_t;
         using node_t = detail::node_t<T>;
         using header_t = detail::header_t;
-
-        // allocator breed
-        using alloc_t = typename std::allocator_traits<Alloc>::template rebind_alloc<T>;
-        using alloc_traits_t = std::allocator_traits<alloc_t>;
-        using node_alloc_t = typename alloc_traits_t::template rebind_alloc<node_t>;
-        using node_alloc_traits_t = std::allocator_traits<node_alloc_t>;
 
         // binds next_[pass_type_t::LEADING]
         // and pred_[pass_type_t::TRAILING]
@@ -632,7 +664,23 @@ struct forest
             destruct_node(static_cast<node_t*>(node));
         }
 
-        void dumb_delete_node(node_base_t* node)
+        // at least meant to be so
+        void wise_delete_internal(node_base_t* node) noexcept
+        {
+            // traversing subtree of node to delete
+            for (auto it = ++iterator(node, iterator::traversal_t::LEAD);
+                 get_level(it) > node->level_;
+                 ++it)
+            {
+                --(it.node_->level_);
+            }
+            // now can delete this sucker
+            dumb_delete_internal(node);
+        }
+
+        // corrects nothing after deletion (level etc.)
+        // except size
+        void dumb_delete_node(node_base_t* node) noexcept
         {
             if (is_leaf(node))
             {
@@ -641,6 +689,18 @@ struct forest
             else
             {
                 dumb_delete_internal(node);
+            }
+        }
+
+        void wise_delete_node(node_base_t* node) noexcept
+        {
+            if (is_leaf(node))
+            {
+                delete_leaf(node);
+            }
+            else
+            {
+                wise_delete_internal(node);
             }
         }
 
