@@ -24,10 +24,9 @@ detail::node_base_t* detail::traverse(detail::node_base_t* node,
     auto consider_type = traversal;
     auto opposite_type = detail::opposite_pass_type(consider_type);
 
-    decltype(node->get(consider_type).get(dir)) cur_pass = nullptr;
     // passing edges leading to opposite pass
-    for (cur_pass = node->get(consider_type).get(dir);
-         cur_pass->type_ == opposite_type;
+    auto cur_pass = node->get(consider_type).get(dir);
+    for (;cur_pass->type_ == opposite_type;
          cur_pass = cur_pass->get(dir));
     
     assert(cur_pass->type_ == consider_type);

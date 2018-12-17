@@ -359,6 +359,14 @@ struct forest
         node_base_t* cur_parent = header_;
         // previously inserted node
         node_base_t* last_inserted = nullptr;
+
+        auto insert_helper = [this] (auto it, node_base_t* cur_parent)
+            {
+                auto pos = iterator(cur_parent, iterator::traversal_t::LEAD);
+                auto new_pos = insert(pos, *it);
+                return new_pos.node_;
+            };
+
         
         // copping
         // exception safety is based on the fact, that
@@ -369,41 +377,37 @@ struct forest
             for (auto it = rhs.begin(); it != rhs.end(); ++it)
             {
                 auto cur_level = rhs.get_level(it);
+                auto inc_parent_level = cur_parent->level_ + 1;
                 // distance in levels between node to insert and currnt level
-                auto diff_level = static_cast<int>(cur_level) - static_cast<int>(cur_parent->level_);
+                //auto diff_level = static_cast<int>(cur_level) - static_cast<int>(cur_parent->level_);
                 // parent is the same
-                if (diff_level == 1)
+                if (cur_level == inc_parent_level)
                 {
-                    auto pos = iterator(cur_parent, iterator::traversal_t::LEAD);
-                    auto new_pos = insert(pos, *it);
-                    last_inserted = new_pos.node_;
+                    last_inserted = insert_helper(it, cur_parent);
                 }
                 else
                 {
                     // going deeper
-                    if (diff_level > 1)
+                    if (cur_level > inc_parent_level)
                     {
-                        assert(diff_level == 2 && "can go deeper only by one level");
+                        assert(cur_level - inc_parent_level == 1 &&
+                               "can go deeper only by one level");
                         cur_parent = last_inserted;
-                        auto pos = iterator(cur_parent, iterator::traversal_t::LEAD);
-                        auto new_pos = insert(pos, *it);
-                        last_inserted = new_pos.node_;
+                        last_inserted = insert_helper(it, cur_parent);
                     }
                     else
                     {
                         // rolling back towards header
-                        assert(diff_level < 1);
+                        assert(cur_level < inc_parent_level);
                         // how much steps towards header, we have to make
-                        auto steps = -(diff_level - 1);
+                        auto steps = inc_parent_level - cur_level;
                         assert(steps > 0 && "must be at least 1");
-                        for (int i = 0; i < steps; ++i)
+                        // stepping back
+                        for (decltype(steps) i = 0; i < steps; ++i)
                         {
                             cur_parent = cur_parent->tail_.next_->node_;
                         }
-                        // now we know current parent
-                        auto pos = iterator(cur_parent, iterator::traversal_t::LEAD);
-                        auto new_pos = insert(pos, *it);
-                        last_inserted = new_pos.node_;
+                        last_inserted = insert_helper(it, cur_parent);
                     }
                 }
             }
@@ -493,13 +497,13 @@ struct forest
     iterator insert(iterator pos, const T& value)
     {
         // new node iserts before tail
-        pass_t& next_pass = pos.node_->tail_;
+        auto& next_pass = pos.node_->tail_;
         // new node's pred
-        pass_t& pred_pass = *next_pass.pred_;
+        auto& pred_pass = *next_pass.pred_;
         // new node's level
-        level_t level = get_level(pos) + 1;
+        auto level = get_level(pos) + 1;
 
-        node_base_t* new_node = construct_node(value, level);
+        auto new_node = construct_node(value, level);
 
         // Kalbs line
         //---------------------------------------------------
