@@ -19,7 +19,7 @@ auto main() -> int
     std::cout << "Tree has " << first_one.size() << " nodes." << std::endl;
     Dump(first_one);
     std::cout << std::endl;
-   
+
     auto move_forest = std::move(first_one);
     std::cout << "Moved the one above" << std::endl;
     Dump(move_forest);
@@ -42,18 +42,18 @@ auto main() -> int
     std::cout << "  [2] [3]" << std::endl;
     std::cout << "      / \\" << std::endl;
     std::cout << "    [4] [5]" << std::endl;
-    
+
     forestlib::forest<unsigned> second_one;
-    
+
     // filling
     auto left_subforest = second_one.insert(second_one.end(), 1);
     second_one.insert(second_one.end(), 6);
     second_one.insert(left_subforest, 2);
-    
+
     auto three = second_one.insert(left_subforest, 3);
     assert(second_one.is_leaf(second_one.insert(three, 4)));
     assert(second_one.is_leaf(second_one.insert(three, 5)));
-    
+
     Dump(second_one);
     std::cout << std::endl;
 
@@ -66,6 +66,7 @@ auto main() -> int
     else
     {
         std::cout << "No, you f*cked up everything" << std::endl;
+        return -1;
     }
     std::cout << std::endl;
 
@@ -78,6 +79,7 @@ auto main() -> int
     else
     {
         std::cout << "No, it sucks" << std::endl;
+        return -1;
     }
     std::cout << std::endl;
 

@@ -158,7 +158,7 @@ namespace detail
     node_base_t* traverse(node_base_t* node,
                           pass_t::type_t traversal,
                           pass_t::direction_t direction) noexcept;
-    
+
     const node_base_t* traverse(const node_base_t* node,
                                 pass_t::type_t traversal,
                                 pass_t::direction_t direction) noexcept;
@@ -348,76 +348,65 @@ struct forest
         make_leaf(header_);
     }
 
-    forest(const forest& rhs) : header_(new header_t), size_(0)
+    forest(const forest& rhs) : forest()
     {
-        // making empty forest
-        make_header(header_);
-        make_leaf(header_);
+        // for exeption safety
+        forest tmp;
 
         // parent of insertable node
         // starting from header_ (insert(end(), first))
-        node_base_t* cur_parent = header_;
+        node_base_t* cur_parent = tmp.header_;
         // previously inserted node
         node_base_t* last_inserted = nullptr;
 
-        auto insert_helper = [this] (auto it, node_base_t* cur_parent)
+        auto tmp_insert_helper = [&tmp] (auto it, node_base_t* cur_parent) mutable
             {
                 auto pos = iterator(cur_parent, iterator::traversal_t::LEAD);
-                auto new_pos = insert(pos, *it);
+                auto new_pos = tmp.insert(pos, *it);
                 return new_pos.node_;
             };
 
-        
         // copping
         // exception safety is based on the fact, that
         // state chahges only only by insert (this function is exception safe)
         // after each insert *this is a valid forest (equal to rhs's subforest)
-        try
+        for (auto it = rhs.begin(); it != rhs.end(); ++it)
         {
-            for (auto it = rhs.begin(); it != rhs.end(); ++it)
+            auto cur_level = rhs.get_level(it);
+            auto inc_parent_level = cur_parent->level_ + 1;
+            // parent is the same
+            if (cur_level == inc_parent_level)
             {
-                auto cur_level = rhs.get_level(it);
-                auto inc_parent_level = cur_parent->level_ + 1;
-                // distance in levels between node to insert and currnt level
-                //auto diff_level = static_cast<int>(cur_level) - static_cast<int>(cur_parent->level_);
-                // parent is the same
-                if (cur_level == inc_parent_level)
+                last_inserted = tmp_insert_helper(it, cur_parent);
+            }
+            else
+            {
+                // going deeper
+                if (cur_level > inc_parent_level)
                 {
-                    last_inserted = insert_helper(it, cur_parent);
+                    assert(cur_level - inc_parent_level == 1 &&
+                           "can go deeper only by one level");
+                    cur_parent = last_inserted;
+                    last_inserted = tmp_insert_helper(it, cur_parent);
                 }
                 else
                 {
-                    // going deeper
-                    if (cur_level > inc_parent_level)
+                    // rolling back towards header
+                    assert(cur_level < inc_parent_level);
+                    // how much steps towards header we have to make
+                    auto steps = inc_parent_level - cur_level;
+                    assert(steps > 0 && "must be at least 1");
+                    // stepping back
+                    for (decltype(steps) i = 0; i < steps; ++i)
                     {
-                        assert(cur_level - inc_parent_level == 1 &&
-                               "can go deeper only by one level");
-                        cur_parent = last_inserted;
-                        last_inserted = insert_helper(it, cur_parent);
+                        cur_parent = cur_parent->tail_.next_->node_;
                     }
-                    else
-                    {
-                        // rolling back towards header
-                        assert(cur_level < inc_parent_level);
-                        // how much steps towards header, we have to make
-                        auto steps = inc_parent_level - cur_level;
-                        assert(steps > 0 && "must be at least 1");
-                        // stepping back
-                        for (decltype(steps) i = 0; i < steps; ++i)
-                        {
-                            cur_parent = cur_parent->tail_.next_->node_;
-                        }
-                        last_inserted = insert_helper(it, cur_parent);
-                    }
+                    last_inserted = tmp_insert_helper(it, cur_parent);
                 }
             }
         }
-        catch(...)
-        {
-            clear();
-            delete header_;
-            throw;
-        }
+
+        swap(tmp, *this);
     }
 
     forest(forest&& rhs) noexcept : header_(rhs.header_), size_(rhs.size_)
@@ -507,7 +496,7 @@ struct forest
 
         // Kalbs line
         //---------------------------------------------------
-        
+
         // binding
         make_leaf(new_node);
         new_node->tail_.next_ = &next_pass;
@@ -524,7 +513,7 @@ struct forest
         wise_delete_node(pos.node_);
         return ++tmp;
     }
-    
+
     size_t size() const noexcept
     {
         return size_;
@@ -620,7 +609,7 @@ struct forest
             // [pred_pass]--X-->[node->pass]--X-->[next_pass]
             //           \                          ^
             //            \_________________________|
-            
+
             // lead pass
             (node->lead_.pred_)->next_ = node->lead_.next_;
             (node->lead_.next_)->pred_ = node->lead_.pred_;
@@ -682,7 +671,7 @@ bool operator==(const forest<T>& lhs, const forest<T>& rhs) noexcept
     {
         return false;
     }
-    
+
     return std::equal(lhs.begin(), lhs.end(), rhs.begin());
 }
 
