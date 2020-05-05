@@ -6,6 +6,7 @@
 
 auto main() -> int
 {
+    std::cout << "The size of one node is " << sizeof(forestlib::detail::node_base_t) << " bytes" << std::endl;
     forestlib::forest<int> empty_one;
     std::cout << "Can I do at least empty forest:" << std::endl;
     std::cout << "Tree has " << empty_one.size() << " nodes." << std::endl;

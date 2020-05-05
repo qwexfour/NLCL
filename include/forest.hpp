@@ -40,9 +40,7 @@ namespace forestlib
 
 namespace detail
 {
-    struct node_base_t;
-
-    struct pass_t
+    struct pass_base_t
     {
         enum type_t
         {
@@ -56,13 +54,16 @@ namespace detail
             PRED
         };
 
-        pass_t(node_base_t* node, type_t type) noexcept :
-            node_(node), type_(type), next_(nullptr), pred_(nullptr) {}
+        pass_base_t(type_t type) noexcept :
+            type_(type), next_(nullptr), pred_(nullptr) {}
 
-        pass_t(const pass_t&) = delete;
-        pass_t& operator=(const pass_t&) = delete;
+        pass_base_t(const pass_base_t&) = delete;
+        pass_base_t(pass_base_t&&) = delete;
+        pass_base_t& operator=(const pass_base_t&) = delete;
+        pass_base_t& operator=(pass_base_t&&) = delete;
 
-        pass_t* get(direction_t dir) noexcept
+        // for convenience sake
+        pass_base_t* get(direction_t dir) const noexcept
         {
             if (dir == direction_t::NEXT)
             {
@@ -74,62 +75,72 @@ namespace detail
             }
         }
 
-        const pass_t* get(direction_t dir) const noexcept
-        {
-            if (dir == direction_t::NEXT)
-            {
-                return next_;
-            }
-            else
-            {
-                return pred_;
-            }
-        }
-
-        node_base_t* node_;
         type_t type_;
-
-        pass_t* next_;
-        pass_t* pred_;
+        pass_base_t* next_;
+        pass_base_t* pred_;
     };
 
-    struct node_base_t
+    template<pass_base_t::type_t Type>
+    struct pass_t : public pass_base_t
+    {
+        pass_t() : pass_base_t(Type) {}
+    };
+
+    struct node_base_t : public pass_t<pass_base_t::type_t::LEAD>,
+                         public pass_t<pass_base_t::type_t::TAIL>
     {
         using level_t = unsigned;
+
         node_base_t(level_t level = 0) noexcept :
-            lead_(this, pass_t::type_t::LEAD),
-            tail_(this, pass_t::type_t::TAIL),
+            pass_t<pass_base_t::type_t::LEAD>(),
+            pass_t<pass_base_t::type_t::TAIL>(),
             level_(level) {}
 
         node_base_t(const node_base_t& rhs) = delete;
+        node_base_t(node_base_t&& rhs) = delete;
         node_base_t& operator=(const node_base_t& rhs) = delete;
+        node_base_t& operator=(node_base_t&& rhs) = delete;
 
-        pass_t& get(pass_t::type_t type) noexcept
+        pass_base_t& get_lead_pass() noexcept
         {
-            if (type == pass_t::type_t::LEAD)
+            return static_cast<pass_base_t&>(
+                static_cast<pass_t<pass_base_t::type_t::LEAD>&>(*this));
+        }
+
+        const pass_base_t& get_lead_pass() const noexcept
+        {
+            return const_cast<node_base_t*>(this)->get_lead_pass();
+        }
+
+        const pass_base_t& get_tail_pass() const noexcept
+        {
+            return const_cast<node_base_t*>(this)->get_tail_pass();
+        }
+
+        pass_base_t& get_tail_pass() noexcept
+        {
+            return static_cast<pass_base_t&>(
+                static_cast<pass_t<pass_base_t::type_t::TAIL>&>(*this));
+        }
+
+        pass_base_t& get_pass(pass_base_t::type_t type) noexcept
+        {
+            if (type == pass_base_t::type_t::LEAD)
             {
-                return lead_;
+                return get_lead_pass();
             }
             else
             {
-                return tail_;
+                assert(type == pass_base_t::type_t::TAIL);
+                return get_tail_pass();
             }
         }
 
-        const pass_t& get(pass_t::type_t type) const noexcept
+        const pass_base_t& get_pass(pass_base_t::type_t type) const noexcept
         {
-            if (type == pass_t::type_t::LEAD)
-            {
-                return lead_;
-            }
-            else
-            {
-                return tail_;
-            }
+            return const_cast<node_base_t*>(this)->get_pass(type);
         }
 
-        pass_t lead_;
-        pass_t tail_;
         level_t level_;
     };
 
@@ -153,15 +164,18 @@ namespace detail
             node_base_t() {}
     };
 
-    pass_t::type_t opposite_pass_type(pass_t::type_t type) noexcept;
+    pass_base_t::type_t opposite_pass_type(pass_base_t::type_t type) noexcept;
 
     node_base_t* traverse(node_base_t* node,
-                          pass_t::type_t traversal,
-                          pass_t::direction_t direction) noexcept;
+                          pass_base_t::type_t traversal,
+                          pass_base_t::direction_t direction) noexcept;
 
     const node_base_t* traverse(const node_base_t* node,
-                                pass_t::type_t traversal,
-                                pass_t::direction_t direction) noexcept;
+                                pass_base_t::type_t traversal,
+                                pass_base_t::direction_t direction) noexcept;
+
+    node_base_t* get_node(pass_base_t* pass) noexcept;
+    const node_base_t* get_node(const pass_base_t* pass) noexcept;
 }
 
 template<typename T>
@@ -175,8 +189,8 @@ struct forest_iterator
 
     using node_t = detail::node_t<T>;
     using node_base_t = detail::node_base_t;
-    using pass_t = detail::pass_t;
-    using direction_t = detail::pass_t::direction_t;
+    using pass_base_t = detail::pass_base_t;
+    using direction_t = detail::pass_base_t::direction_t;
 
     // wanted smth like this and use in place of pass_type_t
     //enum traversal_t
@@ -185,7 +199,7 @@ struct forest_iterator
     //    POST_ORDER = detail::pass_type_t::TRAILING
     //};
 
-    using traversal_t = detail::pass_t::type_t;
+    using traversal_t = detail::pass_base_t::type_t;
 
     forest_iterator(node_base_t* node, traversal_t traversal) noexcept :
         node_(node), traversal_(traversal) {}
@@ -252,10 +266,10 @@ struct const_forest_iterator
 
     using node_t = detail::node_t<T>;
     using node_base_t = detail::node_base_t;
-    using pass_t = detail::pass_t;
-    using direction_t = detail::pass_t::direction_t;
+    using pass_base_t = detail::pass_base_t;
+    using direction_t = detail::pass_base_t::direction_t;
 
-    using traversal_t = detail::pass_t::type_t;
+    using traversal_t = detail::pass_base_t::type_t;
 
     const_forest_iterator(const node_base_t* node, traversal_t traversal) noexcept :
         node_(node), traversal_(traversal) {}
@@ -399,7 +413,7 @@ struct forest
                     // stepping back
                     for (decltype(steps) i = 0; i < steps; ++i)
                     {
-                        cur_parent = cur_parent->tail_.next_->node_;
+                        cur_parent = detail::get_node(cur_parent->get_tail_pass().next_);
                     }
                     last_inserted = tmp_insert_helper(it, cur_parent);
                 }
@@ -486,7 +500,7 @@ struct forest
     iterator insert(iterator pos, const T& value)
     {
         // new node iserts before tail
-        auto& next_pass = pos.node_->tail_;
+        auto& next_pass = pos.node_->get_tail_pass();
         // new node's pred
         auto& pred_pass = *next_pass.pred_;
         // new node's level
@@ -499,10 +513,10 @@ struct forest
 
         // binding
         make_leaf(new_node);
-        new_node->tail_.next_ = &next_pass;
-        new_node->lead_.pred_ = &pred_pass;
-        next_pass.pred_ = &new_node->tail_;
-        pred_pass.next_ = &new_node->lead_;
+        new_node->get_tail_pass().next_ = &next_pass;
+        new_node->get_lead_pass().pred_ = &pred_pass;
+        next_pass.pred_ = &new_node->get_tail_pass();
+        pred_pass.next_ = &new_node->get_lead_pass();
 
         return iterator(new_node, pos.traversal_);
     }
@@ -540,7 +554,7 @@ struct forest
     }
 
     private:
-        using pass_t = detail::pass_t;
+        using pass_base_t = detail::pass_base_t;
         using node_base_t = detail::node_base_t;
         using node_t = detail::node_t<T>;
         using header_t = detail::header_t;
@@ -549,23 +563,23 @@ struct forest
         // and pred_[pass_type_t::TRAILING]
         static void make_leaf(node_base_t* node) noexcept
         {
-            node->lead_.next_ = &node->tail_;
-            node->tail_.pred_ = &node->lead_;
+            node->get_lead_pass().next_ = &node->get_tail_pass();
+            node->get_tail_pass().pred_ = &node->get_lead_pass();
         }
 
         // binds next_[pass_type_t::LEADING]
         // and pred_[pass_type_t::TRAILING]
         static void make_header(node_base_t* node) noexcept
         {
-            node->tail_.next_ = &node->lead_;
-            node->lead_.pred_ = &node->tail_;
+            node->get_tail_pass().next_ = &node->get_lead_pass();
+            node->get_lead_pass().pred_ = &node->get_tail_pass();
         }
 
         bool is_leaf(node_base_t* node) const noexcept
         {
-            bool res = node->lead_.next_ == &node->tail_;
-            // check if node is in consistancy
-            assert(res == (node->tail_.pred_ == &node->lead_));
+            bool res = node->get_lead_pass().next_ == &node->get_tail_pass();
+            // check if node is consistent
+            assert(res == (node->get_tail_pass().pred_ == &node->get_lead_pass()));
             return res;
         }
 
@@ -584,11 +598,11 @@ struct forest
 
         void delete_leaf(node_base_t* leaf) noexcept
         {
-            assert(leaf->lead_.next_->node_ == leaf &&
-                leaf->tail_.pred_->node_ == leaf &&
+            assert(detail::get_node(leaf->get_lead_pass().next_) == leaf &&
+                detail::get_node(leaf->get_tail_pass().pred_) == leaf &&
                 "wrong argument: must be a leaf");
-            pass_t& pred_pass = *leaf->lead_.pred_;
-            pass_t& next_pass = *leaf->tail_.next_;
+            pass_base_t& pred_pass = *leaf->get_lead_pass().pred_;
+            pass_base_t& next_pass = *leaf->get_tail_pass().next_;
 
             // binding
             pred_pass.next_ = &next_pass;
@@ -601,8 +615,8 @@ struct forest
         // except size
         void dumb_delete_internal(node_base_t* node) noexcept
         {
-            assert(node->lead_.next_->node_ != node &&
-                node->tail_.pred_->node_ != node &&
+            assert(detail::get_node(node->get_lead_pass().next_) != node &&
+                detail::get_node(node->get_tail_pass().pred_) != node &&
                 "wrong argument: must be an internal node");
 
             // rebinding
@@ -611,11 +625,11 @@ struct forest
             //            \_________________________|
 
             // lead pass
-            (node->lead_.pred_)->next_ = node->lead_.next_;
-            (node->lead_.next_)->pred_ = node->lead_.pred_;
+            (node->get_lead_pass().pred_)->next_ = node->get_lead_pass().next_;
+            (node->get_lead_pass().next_)->pred_ = node->get_lead_pass().pred_;
             // tail pass
-            (node->tail_.pred_)->next_ = node->tail_.next_;
-            (node->tail_.next_)->pred_ = node->tail_.pred_;
+            (node->get_tail_pass().pred_)->next_ = node->get_tail_pass().next_;
+            (node->get_tail_pass().next_)->pred_ = node->get_tail_pass().pred_;
 
             destruct_node(static_cast<node_t*>(node));
         }
